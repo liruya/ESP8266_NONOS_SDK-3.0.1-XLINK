@@ -281,11 +281,11 @@ endif
 	
 ifeq ($(app), 0)
 	@python ../tools/gen_appbin.py $< 0 $(mode) $(freqdiv) $(size_map) $(app)
-	@mv eagle.app.flash.bin ../bin/eagle.flash.bin
-	@mv eagle.app.v6.irom0text.bin ../bin/eagle.irom0text.bin
+	@mv eagle.app.flash.bin ../app/bin/eagle.flash.bin
+	@mv eagle.app.v6.irom0text.bin ../app/bin/eagle.irom0text.bin
 	@rm eagle.app.v6.*
 	@echo "No boot needed."
-	@echo "Generate eagle.flash.bin and eagle.irom0text.bin successully in folder bin."
+	@echo "Generate eagle.flash.bin and eagle.irom0text.bin successully in folder app/bin."
 	@echo "eagle.flash.bin-------->0x00000"
 	@echo "eagle.irom0text.bin---->0x10000"
 else
@@ -306,9 +306,9 @@ else
         endif
     endif
 
-	@mv eagle.app.flash.bin ../bin/upgrade/$(BIN_NAME).bin
+	@mv eagle.app.flash.bin ../app/bin/$(USER_BIN_NAME)/$(BIN_NAME).bin
 	@rm eagle.app.v6.*
-	@echo "Generate $(BIN_NAME).bin successully in folder bin/upgrade."
+	@echo "Generate $(BIN_NAME).bin successully in folder app/bin/$(USER_BIN_NAME)."
 	@echo "boot.bin------------>0x00000"
 	@echo "$(BIN_NAME).bin--->$(addr)"
 endif

@@ -66,6 +66,7 @@ extern void xlink_datapoint_init_double(uint8_t idx, double *pdata);
 extern void xlink_datapoint_init_string(uint8_t idx, uint8_t *pdata, uint8_t len);
 extern void xlink_datapoint_init_binary(uint8_t idx, uint8_t *pdata, uint8_t len);
 extern void xlink_datapoint_set_changed(uint8_t idx);
+extern bool xlink_datapoint_ischanged(uint8_t idx);
 extern void xlink_datapoint_update_all();
 extern void xlink_datapoint_update_changed();
 

@@ -3,6 +3,7 @@
 #include "app_util.h"
 #include "xlink_datapoint.h"
 #include "xlink_upgrade.h"
+#include "user_geography.h"
 
 #define	PSW_ENABLE_MASK	0xFF000000
 #define	PSW_ENABLE_FLAG	0x55000000
@@ -43,7 +44,7 @@ bool ESPFUNC user_device_psw_isvalid(user_device_t *pdev) {
 	if (pdev == NULL || pdev->pconfig == NULL) {
 		return false;
 	}
-	if ((pdev->pconfig->local_psw&PSW_ENABLE_MASK) == PSW_ENABLE_FLAG && (pdev->pconfig->local_psw&PSW_MASK) < PSW_MAX) {
+	if ((pdev->pconfig->local_psw&PSW_ENABLE_MASK) == PSW_ENABLE_FLAG && (pdev->pconfig->local_psw&PSW_MASK) <= PSW_MAX) {
 		return true;
 	}
 	return false;
@@ -125,6 +126,52 @@ LOCAL void ESPFUNC user_device_datetime_calibration(user_device_t *pdev) {
 	}
 }
 
+LOCAL bool ESPFUNC user_device_update_gis(user_device_t *pdev) {
+	if (pdev == NULL || pdev->para == NULL || pdev->pconfig == NULL) {
+		return false;
+	}
+	LOCAL bool valid;
+	LOCAL uint16_t sunrise;
+	LOCAL uint16_t sunset;
+	uint16_t year = pdev->para->year;
+	uint8_t month = pdev->para->month;
+	uint8_t day = pdev->para->day;
+	valid = get_sunrise_sunset(	pdev->pconfig->longitude,
+								pdev->pconfig->latitude,
+								year,
+								month,
+								day,
+								pdev->pconfig->zone,
+								&sunrise,
+								&sunset);
+	if (valid) {
+		valid = pdev->pconfig->gis_enable;
+		if (pdev->para->gis_valid != valid || pdev->para->gis_sunrise != sunrise || pdev->para->gis_sunset != sunset) {
+			pdev->para->gis_valid = valid;
+			pdev->para->gis_sunrise = sunrise;
+			pdev->para->gis_sunset = sunset;
+			return true;
+		}
+	} else if (pdev->para->gis_valid) {
+		pdev->para->gis_valid = false;
+		return true;
+	}
+	return false;
+}
+
+void ESPFUNC user_device_get_daytime(user_device_t *pdev, uint16_t *pstart, uint16_t *pend) {
+	if (pdev == NULL || pdev->para == NULL || pdev->pconfig == NULL) {
+		return;
+	}
+	if (pdev->para->gis_valid) {
+		*pstart = pdev->para->gis_sunrise;
+		*pend = pdev->para->gis_sunset;
+	} else {
+		*pstart = pdev->pconfig->daytime_start;
+		*pend = pdev->pconfig->daytime_end;
+	}
+}
+
 void ESPFUNC user_device_default_config(user_device_t *pdev) {
 	if (pdev == NULL) {
 		return;
@@ -161,6 +208,15 @@ void ESPFUNC user_device_para_init(user_device_t *pdev) {
 	if (!app_util_latitude_isvalid(pdev->pconfig->latitude)) {
 		pdev->pconfig->latitude = 0;
 	}
+	if (pdev->pconfig->gis_enable > 1) {
+		pdev->pconfig->gis_enable = false;
+	}
+	if (pdev->pconfig->daytime_start > 1439) {
+		pdev->pconfig->daytime_start = 0;
+	}
+	if (pdev->pconfig->daytime_end > 1439) {
+		pdev->pconfig->daytime_end = 0;
+	}
 }
 
 void ESPFUNC user_device_key_init(user_device_t *pdev) {
@@ -180,7 +236,14 @@ void ESPFUNC user_device_datapoint_init(user_device_t *pdev) {
 	xlink_datapoint_init_float(LONGITUDE_INDEX, &pdev->pconfig->longitude);
 	xlink_datapoint_init_float(LATITUDE_INDEX, &pdev->pconfig->latitude);
 	xlink_datapoint_init_string(DATETIME_INDEX, pdev->para->datetime, os_strlen(pdev->para->datetime));
+	xlink_datapoint_init_binary(SYNC_DATETIME_INDEX, (uint8_t *) &datetime, sizeof(datetime));
+	xlink_datapoint_init_uint16(DAYTIME_START_INDEX, &pdev->pconfig->daytime_start);
+	xlink_datapoint_init_uint16(DAYTIME_END_INDEX, &pdev->pconfig->daytime_end);
 
+	xlink_datapoint_init_byte(GIS_ENABLE_INDEX, &pdev->pconfig->gis_enable);
+	xlink_datapoint_init_uint16(GIS_SUNRISE_INDEX, &pdev->para->gis_sunrise);
+	xlink_datapoint_init_uint16(GIS_SUNSET_INDEX, &pdev->para->gis_sunset);
+	xlink_datapoint_init_byte(GIS_VALID_INDEX, &pdev->para->gis_valid);
 	xlink_datapoint_init_int16(CLOUDZONE_INDEX, &m_cloud_zone);
 	xlink_datapoint_init_int16(RSSI_INDEX, &wifi_rssi);
 	xlink_datapoint_init_byte(UPGRADE_STATE_INDEX, &upgrade_state);
@@ -200,7 +263,16 @@ void ESPFUNC user_device_process(void *arg) {
 		xlink_datapoint_set_changed(RSSI_INDEX);
 	}
 	user_device_datetime_calibration(pdev);
+	bool update = user_device_update_gis(pdev);
+	if (update) {
+		xlink_datapoint_set_changed(GIS_SUNRISE_INDEX);
+		xlink_datapoint_set_changed(GIS_SUNSET_INDEX);
+		xlink_datapoint_set_changed(GIS_VALID_INDEX);
+	}
 	pdev->process(arg);
+	if (update) {
+		user_device_update_dpchanged();
+	}
 }
 
 void ESPFUNC user_device_update_dpall() {

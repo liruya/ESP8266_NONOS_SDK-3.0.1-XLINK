@@ -36,6 +36,4 @@
  ../../include/ets_sys.h xlink_udp_server.h xlink_tcp_client.h \
  user_device.h user_indicator.h user_smartconfig.h \
  ../../include/smartconfig.h user_task.h user_apconfig.h app_board_led.h \
- user_key.h user_rtc.h user_geography.h \
- /opt/xtensa-lx106-elf/xtensa-lx106-elf/include/math.h app_test.h \
- app_util.h ../../include/pwm.h
+ user_key.h user_rtc.h app_test.h app_util.h ../../include/pwm.h

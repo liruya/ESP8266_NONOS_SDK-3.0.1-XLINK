@@ -19,18 +19,37 @@ typedef enum _sensor_type{
 	SENSOR_INVALID
 }sensor_type_t;
 
+// typedef union {
+// 	struct {
+// 		uint8_t		s1type;
+// 		bool 		s1NotifyEnable;
+// 		bool 		s1LinkageEnable;
+// 		uint8_t 	s1args[256];
+// 		int32_t		s1ThrdLower;
+// 		int32_t		s1ThrdUpper;
+
+// 		uint8_t 	s2type;
+// 		bool 		s2NotifyEnable;
+// 		uint8_t 	s2args[64];
+// 		int32_t		s2ThrdLower;
+// 		int32_t		s2ThrdUpper;
+// 	};
+// 	uint8_t array[360];
+// } sensor_args_t;
+
 typedef union {
 	struct {
 		uint8_t		s1type;
 		bool 		s1NotifyEnable;
-		bool 		s1LinkageEnable;
-		uint8_t 	s1args[256];
+		int32_t		s1DayThreshold;
+		int32_t		s1NightThreshold;
 		int32_t		s1ThrdLower;
 		int32_t		s1ThrdUpper;
 
 		uint8_t 	s2type;
 		bool 		s2NotifyEnable;
-		uint8_t 	s2args[64];
+		int32_t		s2DayThreshold;
+		int32_t		s2NightThreshold;
 		int32_t		s2ThrdLower;
 		int32_t		s2ThrdUpper;
 	};

@@ -2,7 +2,7 @@
 #include "app_util.h"
 #include "xlink_tcp_client.h"
 
-LOCAL xlink_datetime_t datetime;
+xlink_datetime_t datetime;
 LOCAL os_timer_t tmr_1sec;
 
 LOCAL bool isSynchronized;
@@ -20,6 +20,10 @@ void ESPFUNC user_rtc_init() {
 	os_timer_disarm(&tmr_1sec);
 	os_timer_setfn(&tmr_1sec, user_rtc_1s_cb, NULL);
 	os_timer_arm(&tmr_1sec, 1000, 1);
+}
+
+void ESPFUNC user_rtc_set_synchronized() {
+	isSynchronized = true;
 }
 
 bool ESPFUNC user_rtc_is_synchronized() {

@@ -66,8 +66,6 @@ LOCAL void user_monsoon_hwon();
 LOCAL void user_monsoon_hwoff();
 LOCAL void user_monsoon_open();
 LOCAL void user_monsoon_close();
-LOCAL void user_monsoon_process(void *arg);
-LOCAL void user_monsoon_datapoint_init();
 LOCAL uint16_t user_monsoon_get_poweron_period(uint8_t duration);
 
 LOCAL void user_monsoon_default_config();
@@ -226,6 +224,9 @@ LOCAL void ESPFUNC user_monsoon_get_status() {
 				flag = true;
 			} else if((flag2&NTC_DELAY_MASK) == NTC_DELAY_MASK) {
 				monsoon_para.status = 2;
+				monsoon_para.power.value = 0;
+				monsoon_para.power_shadow.value = 0;
+				monsoon_para.poweron_tmr = 0;
 				user_monsoon_alerm2();
 				user_monsoon_close();
 				flag = true;
@@ -235,6 +236,9 @@ LOCAL void ESPFUNC user_monsoon_get_status() {
 			if((flag1&NTC_DELAY_MASK) == 0x00) {
 				if((flag2&NTC_DELAY_MASK) == NTC_DELAY_MASK) {
 					monsoon_para.status = 2;
+					monsoon_para.power.value = 0;
+					monsoon_para.power_shadow.value = 0;
+					monsoon_para.poweron_tmr = 0;
 					user_monsoon_alerm2();
 					user_monsoon_close();
 					flag = true;
@@ -445,6 +449,9 @@ LOCAL void ESPFUNC user_monsoon_power_process(void *arg) {
 }
 
 LOCAL void ESPFUNC user_monsoon_datapoint_changed_cb() {
+	if (xlink_datapoint_ischanged(SYNC_DATETIME_INDEX)) {
+		user_rtc_set_synchronized(true);
+	}
 	if (monsoon_para.status == 0) {
 		if (monsoon_para.power_shadow.value != monsoon_para.power.value) {
 			monsoon_para.power_shadow.value = monsoon_para.power.value;

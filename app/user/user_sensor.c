@@ -10,7 +10,7 @@ bool ESPFUNC user_sensor_args_check(sensor_args_t *parg, uint8_t s1type, uint8_t
 	if (parg->s2type >= SENSOR_INVALID) {
 		return false;
 	}
-	if (parg->s1NotifyEnable > 1 || parg->s1LinkageEnable > 1) {
+	if (parg->s1NotifyEnable > 1) {
 		return false;
 	}
 	if (parg->s2NotifyEnable > 1) {
@@ -23,16 +23,16 @@ bool ESPFUNC user_sensor_args_check(sensor_args_t *parg, uint8_t s1type, uint8_t
 		return false;
 	}
 	
-	uint8_t i;
 	switch (parg->s1type) {
 		case SENSOR_REPTILE_TEMPERATURE:
 			if (parg->s1ThrdLower < REPTILE_TEMPERATURE_THRESHOLD_MIN || parg->s1ThrdUpper > REPTILE_TEMPERATURE_THRESHOLD_MAX) {
 				return false;
 			}
-			for (i = 0; i < REPTILE_TEMPERATURE_PERIOD_MAX*REPTILE_TEMPERATURE_POINT_MAX; i++) {
-				if (parg->s1args[i] < REPTILE_TEMPERATURE_THRESHOLD_MIN || parg->s1args[i] > REPTILE_TEMPERATURE_THRESHOLD_MAX) {
-					return false;
-				}
+			if (parg->s1DayThreshold < REPTILE_TEMPERATURE_THRESHOLD_MIN || parg->s1DayThreshold > REPTILE_TEMPERATURE_THRESHOLD_MAX) {
+				return false;
+			}
+			if (parg->s1NightThreshold < REPTILE_TEMPERATURE_THRESHOLD_MIN || parg->s1NightThreshold > REPTILE_TEMPERATURE_THRESHOLD_MAX) {
+				return false;
 			}
 			break;
 		default:
@@ -41,6 +41,12 @@ bool ESPFUNC user_sensor_args_check(sensor_args_t *parg, uint8_t s1type, uint8_t
 	switch (parg->s2type) {
 		case SENSOR_REPTILE_HUMIDITY:
 			if (parg->s2ThrdLower < REPTILE_HUMIDITY_THRESHOLD_MIN || parg->s2ThrdUpper > REPTILE_HUMIDITY_THRESHOLD_MAX) {
+				return false;
+			}
+			if (parg->s2DayThreshold < REPTILE_HUMIDITY_THRESHOLD_MIN || parg->s2DayThreshold > REPTILE_HUMIDITY_THRESHOLD_MAX) {
+				return false;
+			}
+			if (parg->s2NightThreshold < REPTILE_HUMIDITY_THRESHOLD_MIN || parg->s2NightThreshold > REPTILE_HUMIDITY_THRESHOLD_MAX) {
 				return false;
 			}
 			break;

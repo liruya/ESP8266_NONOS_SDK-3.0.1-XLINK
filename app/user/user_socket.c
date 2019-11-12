@@ -15,7 +15,8 @@
 #define SOCKET_PRODUCT_ID			"160fa2b95aac03e9160fa2b95aac5e01"
 #define	SOCKET_PRODUCT_KEY			"dae24f80da82b6f1d55d06781e8b94e6"
 
-#define	INDEX_SWITCH_COUNT			10
+#define	INDEX_SWITCH_COUNT			12
+#define	INDEX_MODE					14
 
 //报警模板
 #define	ALARM_TMP_FORMAT			"{\
@@ -39,10 +40,9 @@
 #define	NOTIFY_MASK		0x80
 
 #define	LINKAGE_LOCK_PERIOD		30000		//lock linkage after manual turnon/turnoff
-#define	LINKAGE_LOCKON_PERIOD	60000		//lock socket for 15min after turnon
+#define	LINKAGE_LOCKON_PERIOD	900000		//lock socket for 15min after turnon
 
 typedef enum timer_error{ TIMER_DISABLED, TIMER_ENABLED, TIMER_INVALID } timer_error_t;
-typedef enum socket_state{ STATE_LOW, STATE_HIGH, STATE_INVALID } socket_state_t;
 
 LOCAL void user_socket_detect_sensor(void *arg);
 LOCAL void user_socket_decode_sensor(uint8_t *pbuf, uint8_t len);
@@ -102,8 +102,8 @@ LOCAL os_timer_t socket_proc_tmr;
 LOCAL os_timer_t sensor_detect_tmr;
 LOCAL os_timer_t linkage_lockon_tmr;
 LOCAL os_timer_t linkage_lock_tmr;
-LOCAL bool mLock;			//手动开关后锁定联动标志
-LOCAL bool mLockon;			//联动打开后锁定标志
+LOCAL volatile bool mLock;				//手动开关后锁定联动标志
+LOCAL volatile bool mLockon;			//联动打开后锁定标志
 
 LOCAL char s1_loss_alerm[DATAPOINT_STR_MAX_LEN];
 LOCAL char s1_over_alerm[DATAPOINT_STR_MAX_LEN];
@@ -249,16 +249,24 @@ LOCAL timer_error_t ESPFUNC user_socket_check_timer(socket_timer_t *p_timer) {
 	if (p_timer == NULL) {
 		return TIMER_INVALID;
 	}
-	if (p_timer->timer > 1439) {
-		return TIMER_INVALID;
-	}
-	if(p_timer->action > 1) {
+	if (p_timer->enable > 1 
+		|| p_timer->action > ACTION_TURNON_DURATION 
+		|| (p_timer->repeat&0x7F) != 0
+		|| p_timer->hour > 23 || p_timer->minute > 59 || p_timer->second > 59
+		|| p_timer->end_hour > 23 || p_timer->end_minute > 59 || p_timer->end_second > 59) {
 		return TIMER_INVALID;
 	}
 	if (p_timer->enable) {
 		return TIMER_ENABLED;
 	}
 	return TIMER_DISABLED;
+}
+
+LOCAL void ESPFUNC user_socket_reset_timer(socket_timer_t *p_timer) {
+	if (p_timer == NULL) {
+		return;
+	}
+	os_memset(p_timer, 0xFF, sizeof(socket_timer_t));
 }
 
 LOCAL void ESPFUNC user_socket_update_timers() {
@@ -271,7 +279,7 @@ LOCAL void ESPFUNC user_socket_update_timers() {
 		}
 	}
 	for(i = cnt; i < SOCKET_TIMER_MAX; i++) {
-		socket_config.socket_timer[i].value = SOKCET_TIMER_INVALID;
+		os_memset(&socket_config.socket_timer[i], 0xFF, sizeof(socket_timer_t));
 	}
 }
 
@@ -288,8 +296,9 @@ LOCAL void ESPFUNC user_socket_default_config() {
 		socket_config.switch_count = 0;
 	}
 	socket_config.switch_flag = SWITCH_SAVED_FLAG;
+	socket_config.mode = MODE_TIMER;
 	for (i = 0; i < SOCKET_TIMER_MAX; i++) {
-		socket_config.socket_timer[i].value = SOKCET_TIMER_INVALID;
+		os_memset(&socket_config.socket_timer[i], 0xFF, sizeof(socket_timer_t));
 	}
 }
 
@@ -378,35 +387,49 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 	if (user_smartconfig_instance_status() || user_apconfig_instance_status()) {
 		return;
 	}
-	/* when use linkage with sensor, timer disabled */
-	if (user_socket_linkage_process()) {
+	if (socket_config.mode == MODE_SENSOR1 || socket_config.mode == MODE_SENSOR2) {
+		user_socket_linkage_process();
 		return;
 	}
 	if (user_rtc_is_synchronized() == false) {
 		return;
 	}
-	uint8_t sec = socket_para.super.second;
-	if(sec != 0) {
-		return;
-	}
+	uint8_t hour = socket_para.super.hour;
+	uint8_t minute = socket_para.super.minute;
+	uint8_t second = socket_para.super.second;
+
 	uint8_t i;
 	bool flag = false;
 	bool save = false;
 	bool action = false;
 	socket_timer_t *p;
-	uint16_t ct = socket_para.super.hour * 60u + socket_para.super.minute;
 	user_socket_update_timers();
 	for (i = 0; i < SOCKET_TIMER_MAX; i++) {
 		p = &socket_config.socket_timer[i];
-		if (user_socket_check_timer(p) == TIMER_ENABLED && ct == p->timer) {
-			if (p->repeat == 0) {
-				p->enable = false;
-				action = p->action;
-				flag = true;
-				save = true;
-			} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
-				action = p->action;
-				flag = true;
+		if (user_socket_check_timer(p) == TIMER_ENABLED) {
+			if (p->hour == hour && p->minute == minute && p->second == second) {
+				if (p->repeat == 0) {
+					action = (p->action > ACTION_TURNOFF ? true : false);
+					flag = true;
+					if (p->action != ACTION_TURNON_DURATION) {
+						p->enable = 0;
+						save = true;
+					}
+				} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
+					action = (p->action > ACTION_TURNOFF ? true : false);
+					flag = true;
+				}
+			}
+			if (p->action == ACTION_TURNON_DURATION && p->end_hour == hour && p->end_minute == minute && p->end_second == second) { 
+				if (p->repeat == 0) {
+					action = false;
+					flag = true;
+					p->enable = false;
+					save = true;
+				} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
+					action = false;
+					flag = true;
+				}
 			}
 		}
 	}
@@ -426,28 +449,7 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 	}
 }
 
-LOCAL bool user_socket_linkage_process() {
-	if (socket_para.sensor1_available == false) {
-		return false;
-	}
-	if (user_sensor_args_check(socket_para.p_sensor_args, socket_para.sensor1_type, socket_para.sensor2_type) == false) {
-		return false;
-	}
-	if (socket_para.p_sensor_args->s1LinkageEnable) {
-		switch (socket_para.sensor1_type) {
-			case SENSOR_REPTILE_TEMPERATURE:
-				reptile_temperature_linkage_process();
-				break;
-		
-			default:
-				break;
-		}
-		return true;
-	}
-	return false;
-}
-
-LOCAL void ESPFUNC reptile_temperature_linkage_process() {
+LOCAL void ESPFUNC sensor1_linkage_process(uint16_t range) {
 	LOCAL uint8_t overCount = 0;
 	LOCAL uint8_t overRecoverCount = 0;
 	LOCAL uint8_t lossCount = 0;
@@ -462,12 +464,25 @@ LOCAL void ESPFUNC reptile_temperature_linkage_process() {
 	if (hour > 23) {
 		return;
 	}
+
+	uint16_t ct = socket_para.super.hour*60 + socket_para.super.minute;
 	sensor_args_t *pargs = socket_para.p_sensor_args;
-	uint8_t target = pargs->s1args[(month-1)*12+hour/2];
-	uint8_t max = (target+2)*10;
-	uint8_t min = (target-2)*10;
-	uint8_t temp = socket_para.sensor1_value;
-	/* check temperature over flag */
+	uint16_t daytime_start = socket_config.super.daytime_start;
+	uint16_t daytime_end = socket_config.super.daytime_end;
+	if (socket_para.super.gis_valid) {
+		daytime_start = socket_para.super.gis_sunrise;
+		daytime_end = socket_para.super.gis_sunset;
+	}
+	int32_t target;
+	if (ct >= daytime_start && ct <= daytime_end) {
+		target = pargs->s1DayThreshold;
+	} else {
+		target = pargs->s1NightThreshold;
+	}
+	int32_t max = (target+range)*10;
+	int32_t min = (target-range)*10;
+	int32_t temp = socket_para.sensor1_value;
+	/* check sensor1 over flag */
 	if (overFlag == false) {
 		if (temp > max) {
 			overCount++;
@@ -475,7 +490,7 @@ LOCAL void ESPFUNC reptile_temperature_linkage_process() {
 				overFlag = true;
 				overCount = 0;
 
-				app_logd("overflag: 1");
+				app_logd("sensor1 overflag: 1");
 			}
 		} else {
 			overCount = 0;
@@ -487,14 +502,14 @@ LOCAL void ESPFUNC reptile_temperature_linkage_process() {
 				overFlag = false;
 				overCount = 0;
 
-				app_logd("overflag: 0");
+				app_logd("sensor1 overflag: 0");
 			}
 		} else {
 			overCount = 0;
 		}
 	}
 
-	/* check temperature loss flag */
+	/* check sensor1 loss flag */
 	if (lossFlag == false) {
 		if (temp < min) {
 			lossCount++;
@@ -502,7 +517,7 @@ LOCAL void ESPFUNC reptile_temperature_linkage_process() {
 				lossFlag = true;
 				lossCount = 0;
 
-				app_logd("lossflag: 1");
+				app_logd("sensor1 lossflag: 1");
 			}
 		} else {
 			lossCount = 0;
@@ -514,7 +529,7 @@ LOCAL void ESPFUNC reptile_temperature_linkage_process() {
 				lossFlag = false;
 				lossCount = 0;
 
-				app_logd("lossflag: 0");
+				app_logd("sensor1 lossflag: 0");
 			}
 		} else {
 			lossCount = 0;
@@ -541,20 +556,240 @@ LOCAL void ESPFUNC reptile_temperature_linkage_process() {
 	}
 }
 
+LOCAL void ESPFUNC sensor2_linkage_process(uint16_t range) {
+	LOCAL uint8_t overCount = 0;
+	LOCAL uint8_t overRecoverCount = 0;
+	LOCAL uint8_t lossCount = 0;
+	LOCAL uint8_t lossRecoverCount = 0;
+	LOCAL bool overFlag = false;
+	LOCAL bool lossFlag = false;
+	uint8_t month = socket_para.super.month;
+	if (month < 1 || month > 12) {
+		return;
+	}
+	uint8_t hour = socket_para.super.hour;
+	if (hour > 23) {
+		return;
+	}
+
+	uint16_t ct = socket_para.super.hour*60 + socket_para.super.minute;
+	sensor_args_t *pargs = socket_para.p_sensor_args;
+	int32_t target;
+	if (ct > socket_config.super.daytime_start && ct <= socket_config.super.daytime_end) {
+		target = pargs->s2DayThreshold;
+	} else {
+		target = pargs->s2NightThreshold;
+	}
+	int32_t max = (target+range)*10;
+	int32_t min = (target-range)*10;
+	int32_t temp = socket_para.sensor1_value;
+	/* check sensor2 over flag */
+	if (overFlag == false) {
+		if (temp > max) {
+			overCount++;
+			if (overCount > 60) {
+				overFlag = true;
+				overCount = 0;
+
+				app_logd("sensor2 overflag: 1");
+			}
+		} else {
+			overCount = 0;
+		}
+	} else {
+		if (temp < max) {
+			overCount++;
+			if (overCount > 60) {
+				overFlag = false;
+				overCount = 0;
+
+				app_logd("sensor2 overflag: 0");
+			}
+		} else {
+			overCount = 0;
+		}
+	}
+
+	/* check sensor2 loss flag */
+	if (lossFlag == false) {
+		if (temp < min) {
+			lossCount++;
+			if (lossCount > 60) {
+				lossFlag = true;
+				lossCount = 0;
+
+				app_logd("sensor2 lossflag: 1");
+			}
+		} else {
+			lossCount = 0;
+		}
+	} else {
+		if (temp > min) {
+			lossCount++;
+			if (lossCount > 60) {
+				lossFlag = false;
+				lossCount = 0;
+
+				app_logd("sensor2 lossflag: 0");
+			}
+		} else {
+			lossCount = 0;
+		}
+	}
+
+	if (mLock) {
+		return;
+	}
+
+	if (overFlag) {
+		if (user_socket_turnoff_linkage()) {
+			socket_para.power = false;
+			user_device_update_dpall();
+		}
+		return;
+	}
+	if (lossFlag && !mLockon) {
+		if (user_socket_turnon_linkage()) {
+			socket_para.power = true;
+			user_socket_save_config();
+			user_device_update_dpall();
+		}
+	}
+}
+
+LOCAL bool user_socket_linkage_process() {
+	if (user_sensor_args_check(socket_para.p_sensor_args, socket_para.sensor1_type, socket_para.sensor2_type) == false) {
+		return false;
+	}
+	if (socket_para.sensor1_available == true && socket_config.mode == MODE_SENSOR1) {
+		switch (socket_para.sensor1_type) {
+			case SENSOR_REPTILE_TEMPERATURE:
+				sensor1_linkage_process(2);
+				break;
+		
+			default:
+				break;
+		}
+		return true;
+	}
+	if (socket_para.sensor2_available == true && socket_config.mode == MODE_SENSOR2) {
+		switch (socket_para.sensor2_type) {
+			case SENSOR_REPTILE_HUMIDITY:
+				sensor2_linkage_process(5);
+				break;
+		
+			default:
+				break;
+		}
+		return true;
+	}
+	return false;
+}
+
+// LOCAL void ESPFUNC reptile_temperature_linkage_process() {
+// 	LOCAL uint8_t overCount = 0;
+// 	LOCAL uint8_t overRecoverCount = 0;
+// 	LOCAL uint8_t lossCount = 0;
+// 	LOCAL uint8_t lossRecoverCount = 0;
+// 	LOCAL bool overFlag = false;
+// 	LOCAL bool lossFlag = false;
+// 	uint8_t month = socket_para.super.month;
+// 	if (month < 1 || month > 12) {
+// 		return;
+// 	}
+// 	uint8_t hour = socket_para.super.hour;
+// 	if (hour > 23) {
+// 		return;
+// 	}
+// 	sensor_args_t *pargs = socket_para.p_sensor_args;
+// 	uint8_t target = pargs->s1args[(month-1)*12+hour/2];
+// 	uint8_t max = (target+2)*10;
+// 	uint8_t min = (target-2)*10;
+// 	uint8_t temp = socket_para.sensor1_value;
+// 	/* check temperature over flag */
+// 	if (overFlag == false) {
+// 		if (temp > max) {
+// 			overCount++;
+// 			if (overCount > 60) {
+// 				overFlag = true;
+// 				overCount = 0;
+
+// 				app_logd("overflag: 1");
+// 			}
+// 		} else {
+// 			overCount = 0;
+// 		}
+// 	} else {
+// 		if (temp < max) {
+// 			overCount++;
+// 			if (overCount > 60) {
+// 				overFlag = false;
+// 				overCount = 0;
+
+// 				app_logd("overflag: 0");
+// 			}
+// 		} else {
+// 			overCount = 0;
+// 		}
+// 	}
+
+// 	/* check temperature loss flag */
+// 	if (lossFlag == false) {
+// 		if (temp < min) {
+// 			lossCount++;
+// 			if (lossCount > 60) {
+// 				lossFlag = true;
+// 				lossCount = 0;
+
+// 				app_logd("lossflag: 1");
+// 			}
+// 		} else {
+// 			lossCount = 0;
+// 		}
+// 	} else {
+// 		if (temp > min) {
+// 			lossCount++;
+// 			if (lossCount > 60) {
+// 				lossFlag = false;
+// 				lossCount = 0;
+
+// 				app_logd("lossflag: 0");
+// 			}
+// 		} else {
+// 			lossCount = 0;
+// 		}
+// 	}
+
+// 	if (mLock) {
+// 		return;
+// 	}
+
+// 	if (overFlag) {
+// 		if (user_socket_turnoff_linkage()) {
+// 			socket_para.power = false;
+// 			user_device_update_dpall();
+// 		}
+// 		return;
+// 	}
+// 	if (lossFlag && !mLockon) {
+// 		if (user_socket_turnon_linkage()) {
+// 			socket_para.power = true;
+// 			user_socket_save_config();
+// 			user_device_update_dpall();
+// 		}
+// 	}
+// }
+
 LOCAL void ESPFUNC user_socket_datapoint_init() {
 	uint8_t i;
-	// xlink_datapoint_init_string(PROPERTY_INDEX, SOCKET_PROPERTY, os_strlen(SOCKET_PROPERTY));
-	// xlink_datapoint_init_int16(ZONE_INDEX, &socket_config.super.zone);
-	// xlink_datapoint_init_float(LONGITUDE_INDEX, &socket_config.super.longitude);
-	// xlink_datapoint_init_float(LATITUDE_INDEX, &socket_config.super.latitude);
-	// xlink_datapoint_init_string(DATETIME_INDEX, socket_para.super.datetime, os_strlen(socket_para.super.datetime));
-	xlink_datapoint_init_uint32(5, (uint32_t *) &socket_para.switch_count_max);
+	xlink_datapoint_init_uint32(10, (uint32_t *) &socket_para.switch_count_max);
 	
 	/* socket */
-	xlink_datapoint_init_uint32(10, &socket_config.switch_count);
-	xlink_datapoint_init_byte(11, &socket_para.power);
+	xlink_datapoint_init_uint32(12, &socket_config.switch_count);
+	xlink_datapoint_init_byte(13, &socket_para.power);
+	xlink_datapoint_init_byte(14, &socket_config.mode);
 	for(i = 0; i < SOCKET_TIMER_MAX; i++) {
-		xlink_datapoint_init_uint32(12+i, &socket_config.socket_timer[i].value);
+		xlink_datapoint_init_binary(15+i, (uint8_t *) &socket_config.socket_timer[i], sizeof(socket_timer_t));
 	}
 
 	xlink_datapoint_init_byte(40, &socket_para.sensor1_available);
@@ -562,19 +797,24 @@ LOCAL void ESPFUNC user_socket_datapoint_init() {
 	xlink_datapoint_init_int32(42, &socket_para.sensor1_value);
 	xlink_datapoint_init_byte(43, &socket_para.p_sensor_args->s1type);
 	xlink_datapoint_init_byte(44, &socket_para.p_sensor_args->s1NotifyEnable);
-	xlink_datapoint_init_byte(45, &socket_para.p_sensor_args->s1LinkageEnable);
-	uint8_t *pargs = socket_para.p_sensor_args->s1args;
-	for(i = 0; i < 4; i++) {
-		xlink_datapoint_init_binary(46+i, pargs+(DATAPOINT_BIN_MAX_LEN*i), DATAPOINT_BIN_MAX_LEN);
-	}
+	// xlink_datapoint_init_byte(45, &socket_para.p_sensor_args->s1LinkageEnable);
+	// uint8_t *pargs = socket_para.p_sensor_args->s1args;
+	// for(i = 0; i < 4; i++) {
+	// 	xlink_datapoint_init_binary(46+i, pargs+(DATAPOINT_BIN_MAX_LEN*i), DATAPOINT_BIN_MAX_LEN);
+	// }
 	
 	xlink_datapoint_init_byte(50, &socket_para.sensor2_available);
 	xlink_datapoint_init_byte(51, &socket_para.sensor2_type);
 	xlink_datapoint_init_int32(52, &socket_para.sensor2_value);
 	xlink_datapoint_init_byte(53, &socket_para.p_sensor_args->s2type);
 	xlink_datapoint_init_byte(54, &socket_para.p_sensor_args->s2NotifyEnable);
-	xlink_datapoint_init_binary(55, &socket_para.p_sensor_args->s2args[0], DATAPOINT_BIN_MAX_LEN);
+	// xlink_datapoint_init_binary(55, &socket_para.p_sensor_args->s2args[0], DATAPOINT_BIN_MAX_LEN);
 	
+	xlink_datapoint_init_int32(56, &socket_para.p_sensor_args->s1DayThreshold);
+	xlink_datapoint_init_int32(57, &socket_para.p_sensor_args->s1NightThreshold);
+	xlink_datapoint_init_int32(58, &socket_para.p_sensor_args->s2DayThreshold);
+	xlink_datapoint_init_int32(59, &socket_para.p_sensor_args->s2NightThreshold);
+
 	xlink_datapoint_init_int32(60, &socket_para.p_sensor_args->s1ThrdLower);
 	xlink_datapoint_init_int32(61, &socket_para.p_sensor_args->s1ThrdUpper);
 	xlink_datapoint_init_byte(62, &socket_para.s1_loss_flag);
@@ -583,18 +823,11 @@ LOCAL void ESPFUNC user_socket_datapoint_init() {
 	xlink_datapoint_init_int32(65, &socket_para.p_sensor_args->s2ThrdUpper);
 	xlink_datapoint_init_byte(66, &socket_para.s2_loss_flag);
 	xlink_datapoint_init_byte(67, &socket_para.s2_over_flag);
-
-	// xlink_datapoint_init_string(68, s1_loss_alerm, 0);
-	// xlink_datapoint_init_string(69, s1_over_alerm, 0);
-	// xlink_datapoint_init_string(70, s2_loss_alerm, 0);
-	// xlink_datapoint_init_string(71, s2_over_alerm, 0);
-	// xlink_datapoint_init_byte(SNSUB_ENABLE_INDEX, &socket_para.super.sn_subscribe_enable);
 }
 
 LOCAL void ESPFUNC user_socket_refresh_sensor_status() {
 	if (socket_para.sensor1_available == false ||
-		socket_para.sensor1_type != socket_config.sensor_args.s1type ||
-		socket_para.sensor2_type != socket_config.sensor_args.s2type) {
+		user_sensor_args_check(&socket_config.sensor_args, socket_para.sensor1_type, socket_para.sensor2_type) == false) {
 		return;
 	}
 	if (socket_para.sensor1_value < socket_config.sensor_args.s1ThrdLower*10) {
@@ -628,9 +861,16 @@ LOCAL void ESPFUNC user_socket_refresh_sensor_status() {
 			socket_para.s2_over_flag |= NOTIFY_MASK;
 		}
 	}
+	xlink_datapoint_set_changed(62);
+	xlink_datapoint_set_changed(63);
+	xlink_datapoint_set_changed(66);
+	xlink_datapoint_set_changed(67);
 }
 
 LOCAL void ESPFUNC user_socket_datapoint_changed_cb() {
+	if (xlink_datapoint_ischanged(SYNC_DATETIME_INDEX)) {
+		user_rtc_set_synchronized(true);
+	}
 	if (socket_para.power) {
 		user_socket_turnon_manual();
 	} else {
@@ -656,6 +896,8 @@ LOCAL void ESPFUNC user_socket_detect_sensor(void *arg) {
 		socket_para.s1_over_flag = 0;
 		socket_para.s2_loss_flag = 0;
 		socket_para.s2_over_flag = 0;
+		socket_config.mode = MODE_TIMER;
+		user_socket_save_config();
 		user_device_update_dpall();
 		app_logd("sensor removed...");
 	} else if (m_sensor_detected == false && detect == true) {

@@ -51,8 +51,8 @@ void XLINK_FUNCTION xlink_init(user_device_t *pdev) {
 	g_xlink_sdk_instance.dev_firmware_version = pdev->fw_version;
 	g_xlink_sdk_instance.cloud_enable = 1;
 	g_xlink_sdk_instance.local_enable = 1;
-	g_xlink_sdk_instance.log_enable = 1;
-	g_xlink_sdk_instance.log_level = 0;
+	g_xlink_sdk_instance.log_enable = 0;
+	g_xlink_sdk_instance.log_level = 3;
 	g_xlink_sdk_instance.identify = IDENTIFY;
 	// g_xlink_sdk_instance.identify = (pdev->fw_version&0x01) == 0x01 ? OTA_IDENTIFY_1 : OTA_IDENTIFY_2;
 	g_xlink_sdk_instance.dev_sn = pdev->sn;
@@ -312,20 +312,14 @@ void XLINK_FUNCTION xlink_event_cb(struct xlink_sdk_instance **sdk_instance, con
 			pdatetime = &pevent->event_struct_t.datetime_t;
 			user_device_set_cloud_zone(pdatetime->zone);
 			user_rtc_sync_cloud_cb(pdatetime);
-			unsigned char log[128];
-			os_memset(log, 0, 128);
-			os_sprintf(log, "sync cloud time: %d-%02d-%02d %02d:%02d:%02d week-%d zone-%d", pdatetime->year,
-																							pdatetime->month,
-																							pdatetime->day,
-																							pdatetime->hour,
-																							pdatetime->min,
-																							pdatetime->second,
-																							pdatetime->week,
-																							pdatetime->zone);
-			app_logd("%s", log);
-			// unsigned char *plog = &log[0];
-			// int32_t result = xlink_report_cloud_1og(0, &plog, os_strlen(plog));
-			// app_logd("result: %d", result);
+			app_logd("sync cloud time: %d-%02d-%02d %02d:%02d:%02d week-%d zone-%d", pdatetime->year,
+																					 pdatetime->month,
+																					 pdatetime->day,
+																					 pdatetime->hour,
+																					 pdatetime->min,
+																					 pdatetime->second,
+																					 pdatetime->week,
+																					 pdatetime->zone);
 			break;
 		case EVENT_TYPE_UPGRADE_CB:
 			upgrade = pevent->event_struct_t.upgrade_t;

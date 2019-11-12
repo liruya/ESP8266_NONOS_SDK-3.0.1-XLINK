@@ -4,7 +4,6 @@
 #include "xlink.h"
 #include "xlink_datapoint.h"
 #include "user_rtc.h"
-#include "user_geography.h"
 #include "user_apconfig.h"
 #include "user_smartconfig.h"
 #include "app_test.h"
@@ -787,36 +786,6 @@ LOCAL void ESPFUNC user_led_prev_start() {
 	os_timer_arm(&prev_timer, PREVIEW_INTERVAL, 1);
 }
 
-LOCAL bool ESPFUNC user_led_update_gis() {
-	LOCAL bool valid;
-	LOCAL uint16_t sunrise;
-	LOCAL uint16_t sunset;
-	uint16_t year = led_para.super.year;
-	uint8_t month = led_para.super.month;
-	uint8_t day = led_para.super.day;
-	valid = get_sunrise_sunset(	led_config.super.longitude,
-								led_config.super.latitude,
-								year,
-								month,
-								day,
-								led_config.super.zone,
-								&sunrise,
-								&sunset);
-	if (valid) {
-		valid = led_config.gis_enable;
-		if (led_para.gis_valid != valid || led_para.gis_sunrise != sunrise || led_para.gis_sunset != sunset) {
-			led_para.gis_valid = valid;
-			led_para.gis_sunrise = sunrise;
-			led_para.gis_sunset = sunset;
-			return true;
-		}
-	} else if (led_para.gis_valid) {
-		led_para.gis_valid = false;
-		return true;
-	}
-	return false;
-}
-
 LOCAL void ESPFUNC user_led_auto_proccess(uint16_t ct, uint8_t sec) {
 	if (ct > 1439 || sec > 59) {
 		return;
@@ -830,23 +799,17 @@ LOCAL void ESPFUNC user_led_auto_proccess(uint16_t ct, uint8_t sec) {
 	uint32_t dt;
 	uint8_t dbrt;
 	
-	bool update = user_led_update_gis();
-	uint16_t sunrise_start;
+	uint16_t sunrise_start = led_config.super.daytime_start;
 	uint16_t sunrise_end;
 	uint16_t sunset_start;
-	uint16_t sunset_end;
-	uint16_t sunrise_ramp;
-	uint16_t sunset_ramp;
-	if(led_para.gis_valid) {
-		sunrise_start = led_para.gis_sunrise;
-		sunset_end = led_para.gis_sunset;
+	uint16_t sunset_end = led_config.super.daytime_end;
+	uint16_t sunrise_ramp = led_config.sunrise_ramp;
+	uint16_t sunset_ramp = led_config.sunset_ramp;
+	if (led_para.super.gis_valid) {
+		sunrise_start = led_para.super.gis_sunrise;
+		sunset_end = led_para.super.gis_sunset;
 		sunrise_ramp = ((1440+sunset_end-sunrise_start)%1440)/10;
 		sunset_ramp = sunrise_ramp;
-	} else {
-		sunrise_start = led_config.sunrise;
-		sunset_end = led_config.sunset;
-		sunrise_ramp = led_config.sunrise_ramp;
-		sunset_ramp = led_config.sunset_ramp;
 	}
 	sunrise_end = (sunrise_start + sunrise_ramp)%1440;
 	sunset_start = (1440 + sunset_end - sunset_ramp)%1440;
@@ -905,9 +868,6 @@ LOCAL void ESPFUNC user_led_auto_proccess(uint16_t ct, uint8_t sec) {
 				led_para.target_bright[k] = brt[i][k] * 10u - dbrt * dt / (duration * 6u);
 			}
 		}
-	}
-	if (update) {
-		user_device_update_dpall();
 	}
 }
 
@@ -1030,6 +990,9 @@ LOCAL void ESPFUNC user_led_auto_pro_prev(void *arg) {
 }
 
 void ESPFUNC user_led_datapoint_changed_cb() {
+	if (xlink_datapoint_ischanged(SYNC_DATETIME_INDEX)) {
+		user_rtc_set_synchronized(true);
+	}
 	led_config.state = LED_STATE_WIFI;
 	pkeys[0]->long_count = KEY_LONG_PRESS_COUNT;
 	user_led_indicate_wifi();

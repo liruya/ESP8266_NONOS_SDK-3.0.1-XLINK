@@ -162,6 +162,15 @@ void ESPFUNC xlink_datapoint_set_changed(uint8_t idx) {
 	}
 }
 
+bool ESPFUNC xlink_datapoint_ischanged(uint8_t idx) {
+	if (idx < DATAPOINT_MAX_NUM) {
+		if (xlink_datapoint_check(&datapoints[idx])) {
+			return datapoints[idx].changed;
+		}
+	}
+	return false;
+}
+
 uint16_t ESPFUNC xlink_probe_datapoints_to_array(uint8_t *dp_idx, uint8_t dp_length, uint8_t *pdata) {
 	if(pdata == NULL) {
 		return 0;
