@@ -34,5 +34,4 @@
  /opt/xtensa-lx106-elf/xtensa-lx106-elf/include/alloca.h \
  ../../include/c_types.h ../../include/ip_addr.h ../../include/upgrade.h \
  ../../include/espconn.h xlink_config.h xlink_datapoint.h xlink_upgrade.h \
- ../../include/ets_sys.h xlink_udp_server.h xlink_tcp_client.h app_util.h \
- user_geography.h /opt/xtensa-lx106-elf/xtensa-lx106-elf/include/math.h
+ ../../include/ets_sys.h xlink_udp_server.h xlink_tcp_client.h app_util.h

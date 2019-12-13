@@ -9,7 +9,7 @@
 
 #define TCP_SEND_TIMEOUT		1000				//unit ms
 
-#define	DNS_GET_INTERVAL		3000
+#define	DNS_GET_INTERVAL		5000
 
 LOCAL struct espconn xlink_tcp_client;
 LOCAL uint8_t tcp_ringbuffer[TCP_SEND_BUFFER_SIZE];
@@ -189,5 +189,5 @@ void ESPFUNC xlink_tcp_client_init() {
 
 	os_timer_disarm(&loop_timer);
 	os_timer_setfn(&loop_timer, xlink_tcp_func_process, NULL);
-	os_timer_arm(&loop_timer, 100, 1);
+	os_timer_arm(&loop_timer, 50, 1);
 }

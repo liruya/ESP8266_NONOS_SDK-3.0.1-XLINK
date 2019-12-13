@@ -57,11 +57,8 @@ typedef struct {
 	uint8_t custom_bright[CUSTOM_COUNT][LED_CHANNEL_COUNT];	//自定义配光
 
 	/* Auto Mode */
-	bool gis_enable;
-	uint16_t sunrise;										//日出时间
 	uint8_t sunrise_ramp;
 	uint8_t day_bright[LED_CHANNEL_COUNT];					//白天亮度
-	uint16_t sunset;										//日落时间
 	uint8_t sunset_ramp;
 	uint8_t night_bright[LED_CHANNEL_COUNT];				//夜晚亮度
 	bool turnoff_enabled;									//晚上关灯使能
@@ -77,10 +74,6 @@ typedef struct {
 	device_para_t 	super;
 	const uint8_t 	channel_count;
 	const char*		channel_names[LED_CHANNEL_COUNT];
-
-	uint16_t 		gis_sunrise;
-	uint16_t 		gis_sunset;
-	bool 			gis_valid;
 
 	uint32_t 		current_bright[LED_CHANNEL_COUNT];
 	uint32_t 		target_bright[LED_CHANNEL_COUNT];

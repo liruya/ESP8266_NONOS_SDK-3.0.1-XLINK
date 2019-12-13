@@ -6,23 +6,32 @@
 #include "user_smartconfig.h"
 #include "user_apconfig.h"
 
+// #define	USE_LOCATION
+
+#define SPI_FLASH_SECTOR_SIZE       4096
+#define	DEVICE_PROPERTY_SECTOR		0x100
+#define	PROPERTY_SIZE				128
+
 #define	PROPERTY_INDEX			0			//属性索引
 #define	ZONE_INDEX				1			//时区索引
-#define	LONGITUDE_INDEX			2			//设备位置经度索引
-#define	LATITUDE_INDEX			3			//设备位置纬度索引
 #define	DATETIME_INDEX			4			//设备日期时间索引,字符串格式
 #define	SYNC_DATETIME_INDEX		5			//同步时钟索引 本地模式使用
 #define	DAYTIME_START_INDEX		6			//白天开始时间
 #define	DAYTIME_END_INDEX		7			//白天结束时间
-#define	GIS_ENABLE_INDEX		191			//使能根据地理位置获取日出日落时间
-#define	GIS_SUNRISE_INDEX		192			//根据地理位置计算的日出时间
-#define	GIS_SUNSET_INDEX		193			//根据地理位置计算的日落时间
-#define	GIS_VALID_INDEX			194			//地理位置功能是否有效
 #define	CLOUDZONE_INDEX			195			//云平台时区索引
 #define	RSSI_INDEX				196			//信号强度索引
 #define	UPGRADE_STATE_INDEX		197			//设备升级状态索引
 #define	LOCAL_PSW_INDEX			198			//设备本地密码索引
 #define	SNSUB_ENABLE_INDEX		199			//允许SN订阅索引
+
+#ifdef	USE_LOCATION
+#define	LONGITUDE_INDEX			2			//设备位置经度索引
+#define	LATITUDE_INDEX			3			//设备位置纬度索引
+#define	GIS_ENABLE_INDEX		191			//使能根据地理位置获取日出日落时间
+#define	GIS_SUNRISE_INDEX		192			//根据地理位置计算的日出时间
+#define	GIS_SUNSET_INDEX		193			//根据地理位置计算的日落时间
+#define	GIS_VALID_INDEX			194			//地理位置功能是否有效
+#endif
 
 #define	KEY_LONG_PRESS_COUNT	200			//长按键周期
 
@@ -40,7 +49,6 @@ typedef struct _device_config	device_config_t;
 
 struct _user_device {
 	const char * const product;
-	const char * property;
 	const char * const product_id;
 	const char * const product_key;
 	const uint16_t fw_version;
@@ -67,6 +75,7 @@ struct _user_device {
 
 	device_para_t * const	para;
 	device_config_t	* const	pconfig;
+	uint8_t property[PROPERTY_SIZE];
 };
 
 struct _device_para {
@@ -79,9 +88,12 @@ struct _device_para {
 	uint8_t		second;
 	char		datetime[32];			//设备日期时间字符串格式
 
+#ifdef	USE_LOCATION
 	bool		gis_valid;
 	uint16_t	gis_sunrise;
 	uint16_t	gis_sunset;
+#endif
+
 	bool		sn_subscribe_enable;	//允许通过SN订阅设备
 };
 
@@ -90,23 +102,23 @@ struct _device_config {
 
 	int16_t zone;
 
-	float longitude;
-	float latitude;
-
 	uint16_t daytime_start;
 	uint16_t daytime_end;
 
-	bool gis_enable;
-
 	uint32_t local_psw;
+
+#ifdef	USE_LOCATION
+	float longitude;
+	float latitude;
+	bool gis_enable;
+#endif
+
 };
 
 extern bool connected_local;
 
 extern bool user_device_psw_isvalid(user_device_t*);
 extern void user_device_init(user_device_t *);
-
-extern void user_device_get_daytime(user_device_t *pdev, uint16_t *pstart, uint16_t *pend);
 
 extern void user_device_restore(user_device_t *);
 extern bool user_device_poweron_check(user_device_t *);

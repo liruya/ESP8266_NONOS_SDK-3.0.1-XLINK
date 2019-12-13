@@ -23,6 +23,8 @@ void ESPFUNC user_rtc_init() {
 }
 
 void ESPFUNC user_rtc_set_synchronized() {
+	os_timer_disarm(&tmr_1sec);
+	os_timer_arm(&tmr_1sec, 1000, 1);
 	isSynchronized = true;
 }
 

@@ -15,8 +15,39 @@
 #define SOCKET_PRODUCT_ID			"160fa2b95aac03e9160fa2b95aac5e01"
 #define	SOCKET_PRODUCT_KEY			"dae24f80da82b6f1d55d06781e8b94e6"
 
+#define	INDEX_SWITCH_COUNT_MAX		10
 #define	INDEX_SWITCH_COUNT			12
+#define	INDEX_POWER					13
 #define	INDEX_MODE					14
+#define	INDEX_TIMER1				15
+
+#define	INDEX_S1_AVAILABLE			40
+#define	INDEX_S1_TYPE				41
+#define	INDEX_S1_VALUE				42
+#define	INDEX_SV1_TYPE				43
+#define	INDEX_SV1_NOTIFY_EN			44
+
+#define	INDEX_S2_AVAILABLE			50
+#define	INDEX_S2_TYPE				51
+#define	INDEX_S2_VALUE				52
+#define	INDEX_SV2_TYPE				53
+#define	INDEX_SV2_NOTIFY_EN			54
+
+#define	INDEX_SV1_DAY_THRESHOLD		56
+#define	INDEX_SV1_NIGHT_THRESHOLD	57
+
+#define	INDEX_SV2_DAY_THRESHOLD		58
+#define	INDEX_SV2_NIGHT_THRESHOLD	59
+
+#define	INDEX_SV1_THRD_LOWER		60
+#define	INDEX_SV1_THRD_UPPER		61
+#define	INDEX_S1_LOSS_FLAG			62
+#define	INDEX_S1_OVER_FLAG			63
+
+#define	INDEX_SV2_THRD_LOWER		64
+#define	INDEX_SV2_THRD_UPPER		65
+#define	INDEX_S2_LOSS_FLAG			66
+#define	INDEX_S2_OVER_FLAG			67
 
 //报警模板
 #define	ALARM_TMP_FORMAT			"{\
@@ -336,7 +367,9 @@ LOCAL void ESPFUNC user_socket_key_short_press_cb() {
 	} else {
 		user_socket_turnoff_manual();
 	}
-	user_device_update_dpall();
+	xlink_datapoint_set_changed(INDEX_POWER);
+	user_device_update_dpchanged();
+	// user_device_update_dpall();
 }
 
 LOCAL void ESPFUNC user_socket_key_long_press_cb() {
@@ -413,6 +446,7 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 					flag = true;
 					if (p->action != ACTION_TURNON_DURATION) {
 						p->enable = 0;
+						xlink_datapoint_set_changed(INDEX_TIMER1+i);
 						save = true;
 					}
 				} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
@@ -425,6 +459,7 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 					action = false;
 					flag = true;
 					p->enable = false;
+					xlink_datapoint_set_changed(INDEX_TIMER1+i);
 					save = true;
 				} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
 					action = false;
@@ -442,10 +477,12 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 		} else {
 			user_socket_turnoff_manual();
 		}
-		user_device_update_dpall();
 		if(save) {
 			user_socket_save_config();
 		}
+		xlink_datapoint_set_changed(INDEX_POWER);
+		user_device_update_dpchanged();
+		// user_device_update_dpall();
 	}
 }
 
@@ -469,10 +506,13 @@ LOCAL void ESPFUNC sensor1_linkage_process(uint16_t range) {
 	sensor_args_t *pargs = socket_para.p_sensor_args;
 	uint16_t daytime_start = socket_config.super.daytime_start;
 	uint16_t daytime_end = socket_config.super.daytime_end;
+#ifdef	USE_LOCATION
 	if (socket_para.super.gis_valid) {
 		daytime_start = socket_para.super.gis_sunrise;
 		daytime_end = socket_para.super.gis_sunset;
 	}
+#endif
+
 	int32_t target;
 	if (ct >= daytime_start && ct <= daytime_end) {
 		target = pargs->s1DayThreshold;
@@ -543,7 +583,9 @@ LOCAL void ESPFUNC sensor1_linkage_process(uint16_t range) {
 	if (overFlag) {
 		if (user_socket_turnoff_linkage()) {
 			socket_para.power = false;
-			user_device_update_dpall();
+			xlink_datapoint_set_changed(INDEX_POWER);
+			user_device_update_dpchanged();
+			// user_device_update_dpall();
 		}
 		return;
 	}
@@ -551,7 +593,9 @@ LOCAL void ESPFUNC sensor1_linkage_process(uint16_t range) {
 		if (user_socket_turnon_linkage()) {
 			socket_para.power = true;
 			user_socket_save_config();
-			user_device_update_dpall();
+			xlink_datapoint_set_changed(INDEX_POWER);
+			user_device_update_dpchanged();
+			// user_device_update_dpall();
 		}
 	}
 }
@@ -644,7 +688,9 @@ LOCAL void ESPFUNC sensor2_linkage_process(uint16_t range) {
 	if (overFlag) {
 		if (user_socket_turnoff_linkage()) {
 			socket_para.power = false;
-			user_device_update_dpall();
+			xlink_datapoint_set_changed(INDEX_POWER);
+			user_device_update_dpchanged();
+			// user_device_update_dpall();
 		}
 		return;
 	}
@@ -652,7 +698,9 @@ LOCAL void ESPFUNC sensor2_linkage_process(uint16_t range) {
 		if (user_socket_turnon_linkage()) {
 			socket_para.power = true;
 			user_socket_save_config();
-			user_device_update_dpall();
+			xlink_datapoint_set_changed(INDEX_POWER);
+			user_device_update_dpchanged();
+			// user_device_update_dpall();
 		}
 	}
 }
@@ -782,47 +830,47 @@ LOCAL bool user_socket_linkage_process() {
 
 LOCAL void ESPFUNC user_socket_datapoint_init() {
 	uint8_t i;
-	xlink_datapoint_init_uint32(10, (uint32_t *) &socket_para.switch_count_max);
+	xlink_datapoint_init_uint32(INDEX_SWITCH_COUNT_MAX, (uint32_t *) &socket_para.switch_count_max);
 	
 	/* socket */
-	xlink_datapoint_init_uint32(12, &socket_config.switch_count);
-	xlink_datapoint_init_byte(13, &socket_para.power);
-	xlink_datapoint_init_byte(14, &socket_config.mode);
+	xlink_datapoint_init_uint32(INDEX_SWITCH_COUNT, &socket_config.switch_count);
+	xlink_datapoint_init_byte(INDEX_POWER, &socket_para.power);
+	xlink_datapoint_init_byte(INDEX_MODE, &socket_config.mode);
 	for(i = 0; i < SOCKET_TIMER_MAX; i++) {
-		xlink_datapoint_init_binary(15+i, (uint8_t *) &socket_config.socket_timer[i], sizeof(socket_timer_t));
+		xlink_datapoint_init_binary(INDEX_TIMER1+i, (uint8_t *) &socket_config.socket_timer[i], sizeof(socket_timer_t));
 	}
 
-	xlink_datapoint_init_byte(40, &socket_para.sensor1_available);
-	xlink_datapoint_init_byte(41, &socket_para.sensor1_type);
-	xlink_datapoint_init_int32(42, &socket_para.sensor1_value);
-	xlink_datapoint_init_byte(43, &socket_para.p_sensor_args->s1type);
-	xlink_datapoint_init_byte(44, &socket_para.p_sensor_args->s1NotifyEnable);
+	xlink_datapoint_init_byte(INDEX_S1_AVAILABLE, &socket_para.sensor1_available);
+	xlink_datapoint_init_byte(INDEX_S1_TYPE, &socket_para.sensor1_type);
+	xlink_datapoint_init_int32(INDEX_S1_VALUE, &socket_para.sensor1_value);
+	xlink_datapoint_init_byte(INDEX_SV1_TYPE, &socket_para.p_sensor_args->s1type);
+	xlink_datapoint_init_byte(INDEX_SV1_NOTIFY_EN, &socket_para.p_sensor_args->s1NotifyEnable);
 	// xlink_datapoint_init_byte(45, &socket_para.p_sensor_args->s1LinkageEnable);
 	// uint8_t *pargs = socket_para.p_sensor_args->s1args;
 	// for(i = 0; i < 4; i++) {
 	// 	xlink_datapoint_init_binary(46+i, pargs+(DATAPOINT_BIN_MAX_LEN*i), DATAPOINT_BIN_MAX_LEN);
 	// }
 	
-	xlink_datapoint_init_byte(50, &socket_para.sensor2_available);
-	xlink_datapoint_init_byte(51, &socket_para.sensor2_type);
-	xlink_datapoint_init_int32(52, &socket_para.sensor2_value);
-	xlink_datapoint_init_byte(53, &socket_para.p_sensor_args->s2type);
-	xlink_datapoint_init_byte(54, &socket_para.p_sensor_args->s2NotifyEnable);
+	xlink_datapoint_init_byte(INDEX_S2_AVAILABLE, &socket_para.sensor2_available);
+	xlink_datapoint_init_byte(INDEX_S2_TYPE, &socket_para.sensor2_type);
+	xlink_datapoint_init_int32(INDEX_S2_VALUE, &socket_para.sensor2_value);
+	xlink_datapoint_init_byte(INDEX_SV2_TYPE, &socket_para.p_sensor_args->s2type);
+	xlink_datapoint_init_byte(INDEX_SV2_NOTIFY_EN, &socket_para.p_sensor_args->s2NotifyEnable);
 	// xlink_datapoint_init_binary(55, &socket_para.p_sensor_args->s2args[0], DATAPOINT_BIN_MAX_LEN);
 	
-	xlink_datapoint_init_int32(56, &socket_para.p_sensor_args->s1DayThreshold);
-	xlink_datapoint_init_int32(57, &socket_para.p_sensor_args->s1NightThreshold);
-	xlink_datapoint_init_int32(58, &socket_para.p_sensor_args->s2DayThreshold);
-	xlink_datapoint_init_int32(59, &socket_para.p_sensor_args->s2NightThreshold);
+	xlink_datapoint_init_int32(INDEX_SV1_DAY_THRESHOLD, &socket_para.p_sensor_args->s1DayThreshold);
+	xlink_datapoint_init_int32(INDEX_SV1_NIGHT_THRESHOLD, &socket_para.p_sensor_args->s1NightThreshold);
+	xlink_datapoint_init_int32(INDEX_SV2_DAY_THRESHOLD, &socket_para.p_sensor_args->s2DayThreshold);
+	xlink_datapoint_init_int32(INDEX_SV2_NIGHT_THRESHOLD, &socket_para.p_sensor_args->s2NightThreshold);
 
-	xlink_datapoint_init_int32(60, &socket_para.p_sensor_args->s1ThrdLower);
-	xlink_datapoint_init_int32(61, &socket_para.p_sensor_args->s1ThrdUpper);
-	xlink_datapoint_init_byte(62, &socket_para.s1_loss_flag);
-	xlink_datapoint_init_byte(63, &socket_para.s1_over_flag);
-	xlink_datapoint_init_int32(64, &socket_para.p_sensor_args->s2ThrdLower);
-	xlink_datapoint_init_int32(65, &socket_para.p_sensor_args->s2ThrdUpper);
-	xlink_datapoint_init_byte(66, &socket_para.s2_loss_flag);
-	xlink_datapoint_init_byte(67, &socket_para.s2_over_flag);
+	xlink_datapoint_init_int32(INDEX_SV1_THRD_LOWER, &socket_para.p_sensor_args->s1ThrdLower);
+	xlink_datapoint_init_int32(INDEX_SV1_THRD_UPPER, &socket_para.p_sensor_args->s1ThrdUpper);
+	xlink_datapoint_init_byte(INDEX_S1_LOSS_FLAG, &socket_para.s1_loss_flag);
+	xlink_datapoint_init_byte(INDEX_S1_OVER_FLAG, &socket_para.s1_over_flag);
+	xlink_datapoint_init_int32(INDEX_SV2_THRD_LOWER, &socket_para.p_sensor_args->s2ThrdLower);
+	xlink_datapoint_init_int32(INDEX_SV2_THRD_UPPER, &socket_para.p_sensor_args->s2ThrdUpper);
+	xlink_datapoint_init_byte(INDEX_S2_LOSS_FLAG, &socket_para.s2_loss_flag);
+	xlink_datapoint_init_byte(INDEX_S2_OVER_FLAG, &socket_para.s2_over_flag);
 }
 
 LOCAL void ESPFUNC user_socket_refresh_sensor_status() {
@@ -861,15 +909,16 @@ LOCAL void ESPFUNC user_socket_refresh_sensor_status() {
 			socket_para.s2_over_flag |= NOTIFY_MASK;
 		}
 	}
-	xlink_datapoint_set_changed(62);
-	xlink_datapoint_set_changed(63);
-	xlink_datapoint_set_changed(66);
-	xlink_datapoint_set_changed(67);
+	xlink_datapoint_set_changed(INDEX_S1_LOSS_FLAG);
+	xlink_datapoint_set_changed(INDEX_S1_OVER_FLAG);
+	xlink_datapoint_set_changed(INDEX_S2_LOSS_FLAG);
+	xlink_datapoint_set_changed(INDEX_S2_OVER_FLAG);
 }
 
 LOCAL void ESPFUNC user_socket_datapoint_changed_cb() {
 	if (xlink_datapoint_ischanged(SYNC_DATETIME_INDEX)) {
 		user_rtc_set_synchronized(true);
+		app_logd("%d-%d-%d %d:%d:%d week-%d zone-%d", datetime.year, datetime.month, datetime.day, datetime.hour, datetime.min, datetime.second, datetime.week, datetime.zone);
 	}
 	if (socket_para.power) {
 		user_socket_turnon_manual();
@@ -898,7 +947,16 @@ LOCAL void ESPFUNC user_socket_detect_sensor(void *arg) {
 		socket_para.s2_over_flag = 0;
 		socket_config.mode = MODE_TIMER;
 		user_socket_save_config();
-		user_device_update_dpall();
+
+		xlink_datapoint_set_changed(INDEX_S1_AVAILABLE);
+		xlink_datapoint_set_changed(INDEX_S2_AVAILABLE);
+		xlink_datapoint_set_changed(INDEX_S1_LOSS_FLAG);
+		xlink_datapoint_set_changed(INDEX_S1_OVER_FLAG);
+		xlink_datapoint_set_changed(INDEX_S2_LOSS_FLAG);
+		xlink_datapoint_set_changed(INDEX_S2_OVER_FLAG);
+		xlink_datapoint_set_changed(INDEX_MODE);
+		user_device_update_dpchanged();
+		// user_device_update_dpall();
 		app_logd("sensor removed...");
 	} else if (m_sensor_detected == false && detect == true) {
 		m_sensor_detected = true;
@@ -951,6 +1009,13 @@ LOCAL void ESPFUNC user_socket_decode_sensor(uint8_t *pbuf, uint8_t len) {
 	}
 	if (changed) {
 		user_socket_refresh_sensor_status();
-		user_device_update_dpall();
+		xlink_datapoint_set_changed(INDEX_S1_AVAILABLE);
+		xlink_datapoint_set_changed(INDEX_S1_TYPE);
+		xlink_datapoint_set_changed(INDEX_S1_VALUE);
+		xlink_datapoint_set_changed(INDEX_S2_AVAILABLE);
+		xlink_datapoint_set_changed(INDEX_S2_TYPE);
+		xlink_datapoint_set_changed(INDEX_S2_VALUE);
+		user_device_update_dpchanged();
+		// user_device_update_dpall();
 	}
 }

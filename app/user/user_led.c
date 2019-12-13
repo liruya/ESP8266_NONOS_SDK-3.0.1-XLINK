@@ -41,6 +41,30 @@
 
 #define PREVIEW_INTERVAL	50
 
+#define	INDEX_CHANNEL_COUNT		10
+#define	INDEX_CHN1_NAME			11
+#define	INDEX_MODE				17
+#define	INDEX_POWER				18
+#define	INDEX_CHN1_BRIGHT		19
+#define	INDEX_CUSTOM1_BRIGHTS	25
+#define	INDEX_CUSTOM2_BRIGHTS	26
+#define	INDEX_CUSTOM3_BRIGHTS	27
+#define	INDEX_CUSTOM4_BRIGHTS	28
+#define	INDEX_SUNRISE_RAMP		34
+#define	INDEX_DAY_BRIGHTS		35
+#define	INDEX_SUNSET_RAMP		37
+#define	INDEX_NIGHT_BRIGHTS		38
+#define	INDEX_TURNOFF_ENABLE	39
+#define	INDEX_TURNOFF_TIME		40
+#define	INDEX_PROFILE0_COUNT	41
+#define	INDEX_PROFILE0_TIMERS	42
+#define	INDEX_PROFILE0_BRIGHTS	43
+#define	INDEX_PROFILE1_COUNT	45
+#define	INDEX_PROFILE1_TIMERS	46
+#define	INDEX_PROFILE1_BRIGHTS	47
+#define	INDEX_SELECT_PROFILE	92
+#define	INDEX_PREVIEW_FLAG		93
+
 LOCAL key_para_t *pkeys[USER_KEY_NUM];
 LOCAL key_list_t key_list;
 
@@ -258,12 +282,8 @@ LOCAL void ESPFUNC user_led_default_config() {
 	for (i = 0; i < LED_CHANNEL_COUNT; i++) {
 		led_config.bright[i] = BRIGHT_MAX;
 	}
-		
-	led_config.gis_enable = false;
 
-	led_config.sunrise = 420;					//07:00
 	led_config.sunrise_ramp = 60;
-	led_config.sunset = 1080;					//18:00
 	led_config.sunset_ramp = 60;
 	led_config.turnoff_enabled = true;
 	led_config.turnoff_time = 1320;					//22:00
@@ -326,17 +346,8 @@ LOCAL void ESPFUNC user_led_para_init() {
 		}
 	}
 	
-	if (led_config.gis_enable > 1)  {
-		led_config.gis_enable = 0;
-	}
-	if (led_config.sunrise > TIME_VALUE_MAX) {
-		led_config.sunrise = 0;
-	}
 	if (led_config.sunrise_ramp > 240) {
 		led_config.sunrise_ramp = 0;
-	}
-	if (led_config.sunset > TIME_VALUE_MAX) {
-		led_config.sunset = 0;
 	}
 	if (led_config.sunset_ramp > 240) {
 		led_config.sunset_ramp = 0;
@@ -397,48 +408,37 @@ LOCAL void ESPFUNC user_led_key_init() {
 LOCAL void ESPFUNC user_led_datapoint_init() {
 	uint8_t i;
 
-	xlink_datapoint_init_byte(10, (uint8_t *) &led_para.channel_count);
-	xlink_datapoint_init_byte(17, &led_config.mode);
-	xlink_datapoint_init_byte(18, &led_config.power);
+	xlink_datapoint_init_byte(INDEX_CHANNEL_COUNT, (uint8_t *) &led_para.channel_count);
+	xlink_datapoint_init_byte(INDEX_MODE, &led_config.mode);
+	xlink_datapoint_init_byte(INDEX_POWER, &led_config.power);
 	for (i = 0; i < LED_CHANNEL_COUNT; i++) {
-		xlink_datapoint_init_string(11+i, (uint8_t *) led_para.channel_names[i], os_strlen(led_para.channel_names[i]));
-		xlink_datapoint_init_uint16(19+i, &led_config.bright[i]);
+		xlink_datapoint_init_string(INDEX_CHN1_NAME+i, (uint8_t *) led_para.channel_names[i], os_strlen(led_para.channel_names[i]));
+		xlink_datapoint_init_uint16(INDEX_CHN1_BRIGHT+i, &led_config.bright[i]);
 	}
 
-	xlink_datapoint_init_binary(25, &led_config.custom_bright[0][0], LED_CHANNEL_COUNT);
-	xlink_datapoint_init_binary(26, &led_config.custom_bright[1][0], LED_CHANNEL_COUNT);
-	xlink_datapoint_init_binary(27, &led_config.custom_bright[2][0], LED_CHANNEL_COUNT);
-	xlink_datapoint_init_binary(28, &led_config.custom_bright[3][0], LED_CHANNEL_COUNT);
+	xlink_datapoint_init_binary(INDEX_CUSTOM1_BRIGHTS, &led_config.custom_bright[0][0], LED_CHANNEL_COUNT);
+	xlink_datapoint_init_binary(INDEX_CUSTOM2_BRIGHTS, &led_config.custom_bright[1][0], LED_CHANNEL_COUNT);
+	xlink_datapoint_init_binary(INDEX_CUSTOM3_BRIGHTS, &led_config.custom_bright[2][0], LED_CHANNEL_COUNT);
+	xlink_datapoint_init_binary(INDEX_CUSTOM4_BRIGHTS, &led_config.custom_bright[3][0], LED_CHANNEL_COUNT);
 
-	xlink_datapoint_init_byte(29, &led_config.gis_enable);
-	xlink_datapoint_init_uint16(30, &led_para.gis_sunrise);
-	xlink_datapoint_init_uint16(31, &led_para.gis_sunset);
-	xlink_datapoint_init_byte(32, &led_para.gis_valid);
+	xlink_datapoint_init_byte(INDEX_SUNRISE_RAMP, &led_config.sunrise_ramp);
+	xlink_datapoint_init_binary(INDEX_DAY_BRIGHTS, led_config.day_bright, LED_CHANNEL_COUNT);
+	xlink_datapoint_init_byte(INDEX_SUNSET_RAMP, &led_config.sunset_ramp);
+	xlink_datapoint_init_binary(INDEX_NIGHT_BRIGHTS, led_config.night_bright, LED_CHANNEL_COUNT);
+	xlink_datapoint_init_byte(INDEX_TURNOFF_ENABLE, &led_config.turnoff_enabled);
+	xlink_datapoint_init_uint16(INDEX_TURNOFF_TIME, &led_config.turnoff_time);
 
-	xlink_datapoint_init_uint16(33, &led_config.sunrise);
-	xlink_datapoint_init_byte(34, &led_config.sunrise_ramp);
-	xlink_datapoint_init_binary(35, led_config.day_bright, LED_CHANNEL_COUNT);
-	xlink_datapoint_init_uint16(36, &led_config.sunset);
-	xlink_datapoint_init_byte(37, &led_config.sunset_ramp);
-	xlink_datapoint_init_binary(38, led_config.night_bright, LED_CHANNEL_COUNT);
-	xlink_datapoint_init_byte(39, &led_config.turnoff_enabled);
-	xlink_datapoint_init_uint16(40, &led_config.turnoff_time);
-
-	xlink_datapoint_init_byte(41, &led_config.profile0.count);
-	xlink_datapoint_init_binary(42, (uint8_t *) led_config.profile0.timers, led_config.profile0.count*2);
-	xlink_datapoint_init_binary(43, led_config.profile0.brights, led_config.profile0.count*LED_CHANNEL_COUNT);
-	for(i = 0; i < PROFILE_COUNT_MAX; i++) {
-		xlink_datapoint_init_byte(45+i*4, &led_config.profiles[i].count);
-		xlink_datapoint_init_binary(46+i*4, (uint8_t *) led_config.profiles[i].timers, led_config.profiles[i].count*2);
-		xlink_datapoint_init_binary(47+i*4, led_config.profiles[i].brights, led_config.profiles[i].count*LED_CHANNEL_COUNT);
+	xlink_datapoint_init_byte(INDEX_PROFILE0_COUNT, &led_config.profile0.count);
+	xlink_datapoint_init_binary(INDEX_PROFILE0_TIMERS, (uint8_t *) led_config.profile0.timers, led_config.profile0.count*2);
+	xlink_datapoint_init_binary(INDEX_PROFILE0_BRIGHTS, led_config.profile0.brights, led_config.profile0.count*LED_CHANNEL_COUNT);
+	for (i = 0; i < PROFILE_COUNT_MAX; i++) {
+		xlink_datapoint_init_byte(INDEX_PROFILE1_COUNT+i*4, &led_config.profiles[i].count);
+		xlink_datapoint_init_binary(INDEX_PROFILE1_TIMERS+i*4, (uint8_t *) led_config.profiles[i].timers, led_config.profiles[i].count*2);
+		xlink_datapoint_init_binary(INDEX_PROFILE1_BRIGHTS+i*4, led_config.profiles[i].brights, led_config.profiles[i].count*LED_CHANNEL_COUNT);
 	}
-	xlink_datapoint_init_byte(92, &led_config.select_profile);
+	xlink_datapoint_init_byte(INDEX_SELECT_PROFILE, &led_config.select_profile);
 
-	xlink_datapoint_init_byte(93, &prev_flag_shadow);
-
-	// xlink_datapoint_init_byte(UPGRADE_STATE_INDEX, &led_para.super.upgrade_state);
-	// xlink_datapoint_init_uint32(LOCAL_PSW_INDEX, &led_config.super.local_psw);
-	// xlink_datapoint_init_byte(SNSUB_ENABLE_INDEX, &led_para.super.sn_subscribe_enable);
+	xlink_datapoint_init_byte(INDEX_PREVIEW_FLAG, &prev_flag_shadow);
 }
 
 LOCAL void ESPFUNC user_led_init() {
@@ -570,10 +570,17 @@ LOCAL void ESPFUNC user_led_indicate_wifi() {
 }
 
 LOCAL void ESPFUNC user_led_off_onShortPress() {
+	uint8_t i;
 	led_config.state++;
 	led_config.power = 1;
 	user_led_indicate_day();
 	user_led_update_day_bright();
+
+	xlink_datapoint_set_changed(INDEX_POWER);
+	for (i = 0; i < LED_CHANNEL_COUNT; i++) {
+		xlink_datapoint_set_changed(INDEX_CHN1_BRIGHT+i);
+	}
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_led_off_onLongPress() {
@@ -586,10 +593,17 @@ LOCAL void ESPFUNC user_led_off_onRelease() {
 }
 
 LOCAL void ESPFUNC user_led_day_onShortPress() {
+	uint8_t i;
 	led_config.state++;
 	led_config.power = 1;
 	user_led_indicate_night();
 	user_led_update_night_bright();
+
+	xlink_datapoint_set_changed(INDEX_POWER);
+	for (i = 0; i < LED_CHANNEL_COUNT; i++) {
+		xlink_datapoint_set_changed(INDEX_CHN1_BRIGHT+i);
+	}
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_led_day_onLongPress() {
@@ -615,7 +629,6 @@ LOCAL void ESPFUNC user_led_day_onContPress() {
 
 LOCAL void ESPFUNC user_led_day_onRelease() {
 	user_led_save_config();
-	user_device_update_dpall();
 }
 
 LOCAL void ESPFUNC user_led_night_onShortPress() {
@@ -627,6 +640,9 @@ LOCAL void ESPFUNC user_led_night_onShortPress() {
 	}
 	pkeys[0]->long_count = KEY_LONG_PRESS_COUNT;
 	user_led_indicate_wifi();
+
+	xlink_datapoint_set_changed(INDEX_MODE);
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_led_night_onLongPress() {
@@ -652,7 +668,6 @@ LOCAL void ESPFUNC user_led_night_onContPress() {
 
 LOCAL void ESPFUNC user_led_night_onRelease() {
 	user_led_save_config();
-	user_device_update_dpall();
 }
 
 LOCAL void ESPFUNC user_led_wifi_onShortPress() {
@@ -665,6 +680,10 @@ LOCAL void ESPFUNC user_led_wifi_onShortPress() {
 	pkeys[0]->long_count = USER_KEY_LONG_TIME_NORMAL;
 	user_led_indicate_off();
 	user_led_turnoff_direct();
+
+	xlink_datapoint_set_changed(INDEX_MODE);
+	xlink_datapoint_set_changed(INDEX_POWER);
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_led_wifi_onLongPress() {
@@ -688,9 +707,16 @@ LOCAL void ESPFUNC user_led_wifi_onRelease() {
 }
 
 LOCAL void ESPFUNC user_led_onShortPress() {
+	uint8_t i;
 	short_press_func[led_config.state]();
 	user_led_save_config();
-	user_device_update_dpall();
+
+	xlink_datapoint_set_changed(INDEX_MODE);
+	xlink_datapoint_set_changed(INDEX_POWER);
+	for (i = 0; i < LED_CHANNEL_COUNT; i++) {
+		xlink_datapoint_set_changed(INDEX_CHN1_BRIGHT+i);
+	}
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_led_onLongPress() {
@@ -702,7 +728,15 @@ LOCAL void ESPFUNC user_led_onContPress() {
 }
 
 LOCAL void ESPFUNC user_led_onRelease() {
+	uint8_t i;
 	release_func[led_config.state]();
+
+	if (led_config.state == LED_STATE_DAY || led_config.state == LED_STATE_NIGHT) {
+		for (i = 0; i < LED_CHANNEL_COUNT; i++) {
+			xlink_datapoint_set_changed(INDEX_CHN1_BRIGHT+i);
+		}
+		user_device_update_dpchanged();
+	}
 }
 
 LOCAL void ESPFUNC user_led_ramp(void *arg) {
@@ -805,12 +839,14 @@ LOCAL void ESPFUNC user_led_auto_proccess(uint16_t ct, uint8_t sec) {
 	uint16_t sunset_end = led_config.super.daytime_end;
 	uint16_t sunrise_ramp = led_config.sunrise_ramp;
 	uint16_t sunset_ramp = led_config.sunset_ramp;
+#ifdef	USE_LOCATION
 	if (led_para.super.gis_valid) {
 		sunrise_start = led_para.super.gis_sunrise;
 		sunset_end = led_para.super.gis_sunset;
 		sunrise_ramp = ((1440+sunset_end-sunrise_start)%1440)/10;
 		sunset_ramp = sunrise_ramp;
 	}
+#endif
 	sunrise_end = (sunrise_start + sunrise_ramp)%1440;
 	sunset_start = (1440 + sunset_end - sunset_ramp)%1440;
 
@@ -979,7 +1015,9 @@ LOCAL void ESPFUNC user_led_auto_pro_prev(void *arg) {
 	if (prev_ct > 1439) {
 		user_led_prev_stop();
 		prev_flag_shadow = false;
-		user_device_update_dpall();
+
+		xlink_datapoint_set_changed(INDEX_PREVIEW_FLAG);
+		user_device_update_dpchanged();
 		return;
 	}
 	if (led_config.mode == MODE_AUTO) {

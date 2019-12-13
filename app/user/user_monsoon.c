@@ -18,13 +18,6 @@
 
 #define	MONSOON_PROPERTY			"M1"
 
-#define	STATUS_INDEX				10
-#define	KEYACTION_INDEX				11
-#define	POWER_INDEX					12
-#define	POWERON_TMR_INDEX			13
-#define	CUSTOM_ACTIONS_INDEX		14
-#define	TIMER1_INDEX				15
-
 #define	USER_KEY_NUM				1
 #define	USER_KEY_LONG_PRESS_CNT		200
 
@@ -33,6 +26,9 @@
 #define	CTRL_SWOFF_PERIOD			12
 #define	CTRL_HWON_PERIOD			8000	//us
 #define	CTRL_HWOFF_PERIOD			12000	//us
+
+#define	DC_FLAG_INDEX				64
+#define	DC_PUMP_FLAG				0x01
 
 //Rx=(R*10)/(R+10)
 //(3.3*1024*Rx)/(24+Rx) -> (33*1024*R)/(34*R+240)
@@ -54,14 +50,21 @@
 #define	TURNON_MAX_PERIOD			300
 #define	TURNON_DEFAULT_PERIOD		5
 
+#define	INDEX_STATE					10
+#define	INDEX_KEY_ACTION			11
+#define	INDEX_POWER					12
+#define	INDEX_POWERON_TIMER			13
+#define	INDEX_CUSTOM_ACTIONS		14
+#define	INDEX_TIMER1				15
+
 typedef enum {
 	TIMER_DISABLED,
 	TIMER_ENABLED,
 	TIMER_INVALID
 } timer_error_t;
 
-LOCAL void user_monsoon_swon(void *arg);
-LOCAL void user_monsoon_swoff(void *arg);
+// LOCAL void user_monsoon_swon(void *arg);
+// LOCAL void user_monsoon_swoff(void *arg);
 LOCAL void user_monsoon_hwon();
 LOCAL void user_monsoon_hwoff();
 LOCAL void user_monsoon_open();
@@ -115,6 +118,9 @@ LOCAL key_para_t *pkeys[USER_KEY_NUM];
 LOCAL key_list_t key_list;
 LOCAL os_timer_t monsoon_ctrl_timer;
 LOCAL os_timer_t monsoon_power_timer;
+
+LOCAL bool dcPump;
+LOCAL bool useNTC;
 
 LOCAL void ESPFUNC user_monsoon_ledg_toggle() {
 	ledg_toggle();
@@ -272,7 +278,10 @@ LOCAL void ESPFUNC user_monsoon_get_status() {
 			break;
 	}
 	if(flag) {
-		user_device_update_dpall();
+		xlink_datapoint_set_changed(INDEX_STATE);
+		xlink_datapoint_set_changed(INDEX_POWER);
+		xlink_datapoint_set_changed(INDEX_POWERON_TIMER);
+		user_device_update_dpchanged();
 	}
 }
 
@@ -292,6 +301,18 @@ LOCAL void ESPFUNC user_monsoon_save_config() {
 }
 
 LOCAL void ESPFUNC user_monsoon_para_init() {
+	uint8_t dc = user_dev_monsoon.property[DC_FLAG_INDEX];
+	app_logd("dc: %d", dc);
+	if (dc == DC_PUMP_FLAG) {
+		dcPump = true;
+		useNTC = false;
+		app_logd("use dc pump...");
+	} else {
+		dcPump = false;
+		useNTC = true;
+		app_logd("use ac pump...");
+	}
+
 	xlink_read_user_para((uint8_t *)&monsoon_config, sizeof(monsoon_config));
 	if (monsoon_config.super.saved_flag != CONFIG_SAVED_FLAG) {
 		user_monsoon_default_config();
@@ -328,7 +349,10 @@ LOCAL void ESPFUNC user_monsoon_key_short_press_cb() {
 		monsoon_para.poweron_tmr = user_monsoon_get_poweron_period(monsoon_para.power_shadow.duration);
 		user_monsoon_open();
 	}
-	user_device_update_dpall();
+
+	xlink_datapoint_set_changed(INDEX_POWER);
+	xlink_datapoint_set_changed(INDEX_POWERON_TIMER);
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_monsoon_key_long_press_cb() {
@@ -371,22 +395,15 @@ LOCAL void ESPFUNC user_monsoon_key_init() {
 
 LOCAL void ESPFUNC user_monsoon_datapoint_init() {
 	uint8_t i;
-	// xlink_datapoint_init_string(PROPERTY_INDEX, MONSOON_PROPERTY, os_strlen(MONSOON_PROPERTY));
-	// xlink_datapoint_init_int16(ZONE_INDEX, &monsoon_config.super.zone);
-	// xlink_datapoint_init_float(LONGITUDE_INDEX, &monsoon_config.super.longitude);
-	// xlink_datapoint_init_float(LATITUDE_INDEX, &monsoon_config.super.latitude);
-	// xlink_datapoint_init_string(DATETIME_INDEX, monsoon_para.super.datetime, os_strlen(monsoon_para.super.datetime));
 
-	xlink_datapoint_init_byte(STATUS_INDEX, &monsoon_para.status);
-	xlink_datapoint_init_byte(KEYACTION_INDEX, &monsoon_config.key_action);
-	xlink_datapoint_init_byte(POWER_INDEX, &monsoon_para.power.value);
-	xlink_datapoint_init_uint16(POWERON_TMR_INDEX, &monsoon_para.poweron_tmr);
-	xlink_datapoint_init_binary(CUSTOM_ACTIONS_INDEX, &monsoon_config.custom_actions[0], sizeof(monsoon_config.custom_actions));
+	xlink_datapoint_init_byte(INDEX_STATE, &monsoon_para.status);
+	xlink_datapoint_init_byte(INDEX_KEY_ACTION, &monsoon_config.key_action);
+	xlink_datapoint_init_byte(INDEX_POWER, &monsoon_para.power.value);
+	xlink_datapoint_init_uint16(INDEX_POWERON_TIMER, &monsoon_para.poweron_tmr);
+	xlink_datapoint_init_binary(INDEX_CUSTOM_ACTIONS, &monsoon_config.custom_actions[0], sizeof(monsoon_config.custom_actions));
 	for (i = 0; i < TIMER_COUNT_MAX; i++) {
-		xlink_datapoint_init_uint32(TIMER1_INDEX+i, &monsoon_para.ptimers[i].value);
+		xlink_datapoint_init_uint32(INDEX_TIMER1+i, &monsoon_para.ptimers[i].value);
 	}
-
-	// xlink_datapoint_init_byte(SNSUB_ENABLE_INDEX, &monsoon_para.super.sn_subscribe_enable);
 }
 
 LOCAL void ESPFUNC user_monsoon_init() {
@@ -394,7 +411,9 @@ LOCAL void ESPFUNC user_monsoon_init() {
 }
 
 LOCAL void ESPFUNC user_monsoon_process(void *arg) {
-	user_monsoon_get_status();
+	if (useNTC) {
+		user_monsoon_get_status();
+	}
 	if (user_rtc_is_synchronized() == false) {
 		return;
 	}
@@ -402,6 +421,7 @@ LOCAL void ESPFUNC user_monsoon_process(void *arg) {
 		return;
 	}
 	bool flag = false;
+	bool save = false;
 	monsoon_timer_t *ptmr = monsoon_para.ptimers;
 	uint8_t sec = monsoon_para.super.second;
 	if (sec == 0) {
@@ -419,6 +439,8 @@ LOCAL void ESPFUNC user_monsoon_process(void *arg) {
 					monsoon_para.poweron_tmr = user_monsoon_get_poweron_period(monsoon_para.power_shadow.duration);
 					user_monsoon_open();
 					flag = true;
+					save = true;
+					xlink_datapoint_set_changed(INDEX_TIMER1+i);
 				} else if ((ptmr->repeat&(1<<monsoon_para.super.week)) != 0) {
 					monsoon_para.power.onoff = 1;
 					monsoon_para.power.duration = ptmr->duration;
@@ -431,8 +453,13 @@ LOCAL void ESPFUNC user_monsoon_process(void *arg) {
 			ptmr++;
 		}
 	}
+	if (save) {
+		user_monsoon_save_config();
+	}
 	if (flag) {
-		user_device_update_dpall();
+		xlink_datapoint_set_changed(INDEX_POWER);
+		xlink_datapoint_set_changed(INDEX_POWERON_TIMER);
+		user_device_update_dpchanged();
 	}
 }
 
@@ -445,7 +472,10 @@ LOCAL void ESPFUNC user_monsoon_power_process(void *arg) {
 	} else {
 		monsoon_para.poweron_tmr--;
 	}
-	user_device_update_dpall();
+
+	xlink_datapoint_set_changed(INDEX_POWER);
+	xlink_datapoint_set_changed(INDEX_POWERON_TIMER);
+	user_device_update_dpchanged();
 }
 
 LOCAL void ESPFUNC user_monsoon_datapoint_changed_cb() {
@@ -514,19 +544,20 @@ LOCAL uint16_t ESPFUNC user_monsoon_get_poweron_period(uint8_t duration) {
 // 	return 0;
 // }
 
-LOCAL void ESPFUNC user_monsoon_swon(void *arg) {
-	GPIO_OUTPUT_SET(CTRL_IO_NUM, 1);
-	os_timer_disarm(&monsoon_ctrl_timer);
-	os_timer_setfn(&monsoon_ctrl_timer, user_monsoon_swoff, NULL);
-	os_timer_arm(&monsoon_ctrl_timer, CTRL_SWON_PERIOD, 0);
-}
 
-LOCAL void ESPFUNC user_monsoon_swoff(void *arg) {
-	GPIO_OUTPUT_SET(CTRL_IO_NUM, 0);
-	os_timer_disarm(&monsoon_ctrl_timer);
-	os_timer_setfn(&monsoon_ctrl_timer, user_monsoon_swon, NULL);
-	os_timer_arm(&monsoon_ctrl_timer, CTRL_SWOFF_PERIOD, 0);
-}
+// LOCAL void ESPFUNC user_monsoon_swon(void *arg) {
+// 	GPIO_OUTPUT_SET(CTRL_IO_NUM, 1);
+// 	os_timer_disarm(&monsoon_ctrl_timer);
+// 	os_timer_setfn(&monsoon_ctrl_timer, user_monsoon_swoff, NULL);
+// 	os_timer_arm(&monsoon_ctrl_timer, CTRL_SWON_PERIOD, 0);
+// }
+
+// LOCAL void ESPFUNC user_monsoon_swoff(void *arg) {
+// 	GPIO_OUTPUT_SET(CTRL_IO_NUM, 0);
+// 	os_timer_disarm(&monsoon_ctrl_timer);
+// 	os_timer_setfn(&monsoon_ctrl_timer, user_monsoon_swon, NULL);
+// 	os_timer_arm(&monsoon_ctrl_timer, CTRL_SWOFF_PERIOD, 0);
+// }
 
 LOCAL void user_monsoon_hwon() {
 	hw_timer_disarm();
@@ -545,27 +576,20 @@ LOCAL void user_monsoon_hwoff() {
 }
 
 LOCAL void ESPFUNC user_monsoon_on() {
-	// AC Pump sw_timer
-	// user_monsoon_swon(NULL);
-
-	// AC Pump hw_timer
-	user_monsoon_hwon();
-
-	// DC Pump
-	// GPIO_OUTPUT_SET(CTRL_IO_NUM, 1);
+	if (dcPump) {
+		GPIO_OUTPUT_SET(CTRL_IO_NUM, 1);
+	} else {
+		user_monsoon_hwon();
+	}
 }
 
 LOCAL void ESPFUNC user_monsoon_off() {
-	// AC Pump use sw_timer
-	// os_timer_disarm(&monsoon_ctrl_timer);
-	// GPIO_OUTPUT_SET(CTRL_IO_NUM, 0);
+	if (dcPump) {
 
-	// AC Pump user hw_timer
-	hw_timer_disarm();
+	} else {
+		hw_timer_disarm();
+	}
 	GPIO_OUTPUT_SET(CTRL_IO_NUM, 0);
-
-	// DC Pump
-	// GPIO_OUTPUT_SET(CTRL_IO_NUM, 0);
 }
 
 LOCAL void ESPFUNC user_monsoon_open() {

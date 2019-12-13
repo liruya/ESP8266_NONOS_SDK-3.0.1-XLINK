@@ -3,7 +3,9 @@
 #include "app_util.h"
 #include "xlink_datapoint.h"
 #include "xlink_upgrade.h"
+#ifdef	USE_LOCATION
 #include "user_geography.h"
+#endif
 
 #define	PSW_ENABLE_MASK	0xFF000000
 #define	PSW_ENABLE_FLAG	0x55000000
@@ -12,26 +14,14 @@
 
 #define	SNSUBSCRIBE_ENABLE_PERIOD	60000
 
-#define SPI_FLASH_SECTOR_SIZE       4096
-#define	DEVICE_PROPERTY_SECTOR		0x100
-
 bool connected_local;
 
-LOCAL char property[65];
+// LOCAL char property[65];
 LOCAL os_timer_t proc_timer;
 LOCAL os_timer_t snsub_timer;
 
 LOCAL int16_t m_cloud_zone;
 LOCAL int16_t wifi_rssi;
-
-LOCAL void ESPFUNC user_device_get_property(user_device_t *pdev) {
-	if (pdev == NULL) {
-		return;
-	}
-	os_memset(property, 0, sizeof(property));
-	spi_flash_read(DEVICE_PROPERTY_SECTOR * SPI_FLASH_SECTOR_SIZE, (uint32_t *) property, sizeof(property)-1);
-	pdev->property = property;
-}
 
 void ESPFUNC user_device_set_cloud_zone(int16_t zone) {
 	if (m_cloud_zone != zone) {
@@ -126,6 +116,7 @@ LOCAL void ESPFUNC user_device_datetime_calibration(user_device_t *pdev) {
 	}
 }
 
+#ifdef	USE_LOCATION
 LOCAL bool ESPFUNC user_device_update_gis(user_device_t *pdev) {
 	if (pdev == NULL || pdev->para == NULL || pdev->pconfig == NULL) {
 		return false;
@@ -158,19 +149,7 @@ LOCAL bool ESPFUNC user_device_update_gis(user_device_t *pdev) {
 	}
 	return false;
 }
-
-void ESPFUNC user_device_get_daytime(user_device_t *pdev, uint16_t *pstart, uint16_t *pend) {
-	if (pdev == NULL || pdev->para == NULL || pdev->pconfig == NULL) {
-		return;
-	}
-	if (pdev->para->gis_valid) {
-		*pstart = pdev->para->gis_sunrise;
-		*pend = pdev->para->gis_sunset;
-	} else {
-		*pstart = pdev->pconfig->daytime_start;
-		*pend = pdev->pconfig->daytime_end;
-	}
-}
+#endif
 
 void ESPFUNC user_device_default_config(user_device_t *pdev) {
 	if (pdev == NULL) {
@@ -202,7 +181,14 @@ void ESPFUNC user_device_para_init(user_device_t *pdev) {
 	if (!app_util_zone_isvalid(pdev->pconfig->zone)) {
 		pdev->pconfig->zone = 0;
 	}
-	if (!app_util_longitude_isvalid(pdev->pconfig->longitude)) {
+	if (pdev->pconfig->daytime_start > 1439) {
+		pdev->pconfig->daytime_start = 0;
+	}
+	if (pdev->pconfig->daytime_end > 1439) {
+		pdev->pconfig->daytime_end = 0;
+	}
+#ifdef	USE_LOCATION
+if (!app_util_longitude_isvalid(pdev->pconfig->longitude)) {
 		pdev->pconfig->longitude = 0;
 	}
 	if (!app_util_latitude_isvalid(pdev->pconfig->latitude)) {
@@ -211,12 +197,7 @@ void ESPFUNC user_device_para_init(user_device_t *pdev) {
 	if (pdev->pconfig->gis_enable > 1) {
 		pdev->pconfig->gis_enable = false;
 	}
-	if (pdev->pconfig->daytime_start > 1439) {
-		pdev->pconfig->daytime_start = 0;
-	}
-	if (pdev->pconfig->daytime_end > 1439) {
-		pdev->pconfig->daytime_end = 0;
-	}
+#endif
 }
 
 void ESPFUNC user_device_key_init(user_device_t *pdev) {
@@ -231,19 +212,26 @@ void ESPFUNC user_device_datapoint_init(user_device_t *pdev) {
 		app_loge("device datapoint init error");
 		return;
 	}
-	xlink_datapoint_init_string(PROPERTY_INDEX, (uint8_t *) pdev->property, os_strlen(pdev->property));
+	uint8_t len = os_strlen(pdev->property);
+	if (len > DATAPOINT_STR_MAX_LEN) {
+		len = DATAPOINT_STR_MAX_LEN;
+	}
+	xlink_datapoint_init_string(PROPERTY_INDEX, pdev->property, len);
 	xlink_datapoint_init_int16(ZONE_INDEX, &pdev->pconfig->zone);
-	xlink_datapoint_init_float(LONGITUDE_INDEX, &pdev->pconfig->longitude);
-	xlink_datapoint_init_float(LATITUDE_INDEX, &pdev->pconfig->latitude);
 	xlink_datapoint_init_string(DATETIME_INDEX, pdev->para->datetime, os_strlen(pdev->para->datetime));
 	xlink_datapoint_init_binary(SYNC_DATETIME_INDEX, (uint8_t *) &datetime, sizeof(datetime));
 	xlink_datapoint_init_uint16(DAYTIME_START_INDEX, &pdev->pconfig->daytime_start);
 	xlink_datapoint_init_uint16(DAYTIME_END_INDEX, &pdev->pconfig->daytime_end);
 
+#ifdef	USE_LOCATION
+	xlink_datapoint_init_float(LONGITUDE_INDEX, &pdev->pconfig->longitude);
+	xlink_datapoint_init_float(LATITUDE_INDEX, &pdev->pconfig->latitude);
 	xlink_datapoint_init_byte(GIS_ENABLE_INDEX, &pdev->pconfig->gis_enable);
 	xlink_datapoint_init_uint16(GIS_SUNRISE_INDEX, &pdev->para->gis_sunrise);
 	xlink_datapoint_init_uint16(GIS_SUNSET_INDEX, &pdev->para->gis_sunset);
 	xlink_datapoint_init_byte(GIS_VALID_INDEX, &pdev->para->gis_valid);
+#endif
+
 	xlink_datapoint_init_int16(CLOUDZONE_INDEX, &m_cloud_zone);
 	xlink_datapoint_init_int16(RSSI_INDEX, &wifi_rssi);
 	xlink_datapoint_init_byte(UPGRADE_STATE_INDEX, &upgrade_state);
@@ -263,16 +251,23 @@ void ESPFUNC user_device_process(void *arg) {
 		xlink_datapoint_set_changed(RSSI_INDEX);
 	}
 	user_device_datetime_calibration(pdev);
+
+#ifdef	USE_LOCATION
 	bool update = user_device_update_gis(pdev);
 	if (update) {
 		xlink_datapoint_set_changed(GIS_SUNRISE_INDEX);
 		xlink_datapoint_set_changed(GIS_SUNSET_INDEX);
 		xlink_datapoint_set_changed(GIS_VALID_INDEX);
 	}
+#endif
+
 	pdev->process(arg);
+
+#ifdef	USE_LOCATION
 	if (update) {
 		user_device_update_dpchanged();
 	}
+#endif
 }
 
 void ESPFUNC user_device_update_dpall() {
@@ -301,7 +296,7 @@ void ESPFUNC user_device_init(user_device_t *pdev) {
 		while (1);
 		return;
 	}
-	user_device_get_property(pdev);
+	spi_flash_read(DEVICE_PROPERTY_SECTOR * SPI_FLASH_SECTOR_SIZE, (uint32_t *) pdev->property, sizeof(pdev->property));
 	device_para_t *para = pdev->para;
 	os_memset(para->datetime, 0, sizeof(para->datetime));
 	os_sprintf(para->datetime, "%04d-%02d-%02d %02d:%02d:%02d", para->year, para->month, para->day, para->hour, para->minute, para->second);
