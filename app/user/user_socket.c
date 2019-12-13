@@ -282,7 +282,6 @@ LOCAL timer_error_t ESPFUNC user_socket_check_timer(socket_timer_t *p_timer) {
 	}
 	if (p_timer->enable > 1 
 		|| p_timer->action > ACTION_TURNON_DURATION 
-		|| (p_timer->repeat&0x7F) != 0
 		|| p_timer->hour > 23 || p_timer->minute > 59 || p_timer->second > 59
 		|| p_timer->end_hour > 23 || p_timer->end_minute > 59 || p_timer->end_second > 59) {
 		return TIMER_INVALID;
@@ -343,6 +342,7 @@ LOCAL void ESPFUNC user_socket_save_config() {
 }
 
 LOCAL void ESPFUNC user_socket_para_init() {
+	uint8_t i;
 	xlink_read_user_para((uint8_t *)&socket_config, sizeof(socket_config));
 	if (socket_config.super.saved_flag != CONFIG_SAVED_FLAG) {
 		user_socket_default_config();
@@ -352,6 +352,9 @@ LOCAL void ESPFUNC user_socket_para_init() {
 		socket_config.switch_count = 0;
 	}
 	user_socket_update_timers();
+	for (i = 0; i < SOCKET_TIMER_MAX; i++) {
+		socket_config.socket_timer[i].repeat &= 0x7F;
+	}
 }
 
 LOCAL void ESPFUNC user_socket_key_short_press_cb() {	
@@ -444,7 +447,9 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 				if (p->repeat == 0) {
 					action = (p->action > ACTION_TURNOFF ? true : false);
 					flag = true;
-					if (p->action != ACTION_TURNON_DURATION) {
+					if (p->action == ACTION_TURNON_DURATION) {
+						p->repeat = 0x80; 
+					} else {
 						p->enable = 0;
 						xlink_datapoint_set_changed(INDEX_TIMER1+i);
 						save = true;
@@ -452,16 +457,22 @@ LOCAL void ESPFUNC user_socket_process(void *arg) {
 				} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
 					action = (p->action > ACTION_TURNOFF ? true : false);
 					flag = true;
+					if (p->action == ACTION_TURNON_DURATION) {
+						p->repeat |= 0x80; 
+					}
 				}
 			}
 			if (p->action == ACTION_TURNON_DURATION && p->end_hour == hour && p->end_minute == minute && p->end_second == second) { 
-				if (p->repeat == 0) {
+				if (p->repeat == 0x80) {
+					p->repeat = 0;
+					p->enable = false;
 					action = false;
 					flag = true;
-					p->enable = false;
 					xlink_datapoint_set_changed(INDEX_TIMER1+i);
 					save = true;
-				} else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
+				// } else if ((p->repeat&(1<<socket_para.super.week)) != 0) {
+				} else if (p->repeat > 0x80) {
+					p->repeat &= 0x7F;
 					action = false;
 					flag = true;
 				}

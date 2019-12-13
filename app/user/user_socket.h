@@ -35,7 +35,7 @@ typedef union{
 	struct {
 		bool enable;
 		uint8_t action;
-		uint8_t repeat;
+		uint8_t repeat;							//bit7: ACTION_TURNON_DURATION打开标志, 上电清零
 		uint8_t hour;
 		uint8_t minute;
 		uint8_t second;
