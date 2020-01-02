@@ -525,7 +525,7 @@ LOCAL void ESPFUNC sensor1_linkage_process(uint16_t range) {
 #endif
 
 	int32_t target;
-	if (ct >= daytime_start && ct <= daytime_end) {
+	if (ct >= daytime_start && ct < daytime_end) {
 		target = pargs->s1DayThreshold;
 	} else {
 		target = pargs->s1NightThreshold;
