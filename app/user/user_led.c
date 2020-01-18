@@ -283,6 +283,8 @@ LOCAL void ESPFUNC user_led_default_config() {
 		led_config.bright[i] = BRIGHT_MAX;
 	}
 
+	led_config.super.daytime_start = 420;
+	led_config.super.daytime_end = 1080;
 	led_config.sunrise_ramp = 60;
 	led_config.sunset_ramp = 60;
 	led_config.turnoff_enabled = true;

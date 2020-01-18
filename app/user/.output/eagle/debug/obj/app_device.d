@@ -36,4 +36,4 @@
  ../../include/ets_sys.h xlink_udp_server.h xlink_tcp_client.h \
  user_device.h user_indicator.h user_smartconfig.h \
  ../../include/smartconfig.h user_task.h user_apconfig.h app_test.h \
- app_board_socket.h user_socket.h user_sensor.h
+ app_board_led.h user_led.h

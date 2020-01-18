@@ -170,6 +170,8 @@ void ESPFUNC user_device_restore(user_device_t *pdev) {
 		return;
 	}
 	pdev->default_config();
+	pdev->pconfig->daytime_start = 420;
+	pdev->pconfig->daytime_end = 1080;
 	pdev->save_config();
 }
 

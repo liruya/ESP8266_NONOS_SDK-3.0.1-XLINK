@@ -70,7 +70,7 @@
 
 #define	NOTIFY_MASK		0x80
 
-#define	LINKAGE_LOCK_PERIOD		30000		//lock linkage after manual turnon/turnoff
+#define	LINKAGE_LOCK_PERIOD		60000		//lock linkage after manual turnon/turnoff
 #define	LINKAGE_LOCKON_PERIOD	900000		//lock socket for 15min after turnon
 
 typedef enum timer_error{ TIMER_DISABLED, TIMER_ENABLED, TIMER_INVALID } timer_error_t;
@@ -330,6 +330,9 @@ LOCAL void ESPFUNC user_socket_default_config() {
 	for (i = 0; i < SOCKET_TIMER_MAX; i++) {
 		os_memset(&socket_config.socket_timer[i], 0xFF, sizeof(socket_timer_t));
 	}
+
+	socket_config.super.daytime_start = 420;
+	socket_config.super.daytime_end = 1080;
 }
 
 LOCAL void ESPFUNC user_socket_save_config() {

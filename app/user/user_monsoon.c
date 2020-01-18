@@ -288,6 +288,8 @@ LOCAL void ESPFUNC user_monsoon_get_status() {
 LOCAL void ESPFUNC user_monsoon_default_config() {
 	os_memset((uint8_t *)&monsoon_config, 0, sizeof(monsoon_config));
 	monsoon_config.key_action = TURNON_DEFAULT_PERIOD;
+	monsoon_config.super.daytime_start = 420;
+	monsoon_config.super.daytime_end = 1080;
 	monsoon_config.super.saved_flag = CONFIG_DEFAULT_FLAG;
 }
 
@@ -491,12 +493,15 @@ LOCAL void ESPFUNC user_monsoon_datapoint_changed_cb() {
 			} else {
 				user_monsoon_open();
 			}
+			xlink_datapoint_set_changed(INDEX_POWERON_TIMER);
 		}
 	} else {
 		monsoon_para.power.value = 0;
 		monsoon_para.power_shadow.value = 0;
 		monsoon_para.poweron_tmr = 0;
 		user_monsoon_close();
+		xlink_datapoint_set_changed(INDEX_POWER);
+		xlink_datapoint_set_changed(INDEX_POWERON_TIMER);
 	}
 	user_device_update_dpchanged();
 	user_monsoon_save_config();
@@ -516,34 +521,6 @@ LOCAL uint16_t ESPFUNC user_monsoon_get_poweron_period(uint8_t duration) {
 	}
 	return 0;
 }
-// LOCAL uint16_t ESPFUNC user_monsoon_get_poweron_period(uint8_t duration) {
-// 	if (duration <= 120) {
-// 		return duration;
-// 	}
-// 	if (duration == 121) {
-// 		return 180;
-// 	}
-// 	if (duration == 122) {
-// 		return 240;
-// 	}
-// 	if (duration == 123) {
-// 		return 300;
-// 	}
-// 	if (duration == 124) {
-// 		return 360;
-// 	}
-// 	if (duration == 125) {
-// 		return 480;
-// 	}
-// 	if (duration == 126) {
-// 		return 600;
-// 	}
-// 	if (duration == 127) {
-// 		return 900;
-// 	}
-// 	return 0;
-// }
-
 
 // LOCAL void ESPFUNC user_monsoon_swon(void *arg) {
 // 	GPIO_OUTPUT_SET(CTRL_IO_NUM, 1);
