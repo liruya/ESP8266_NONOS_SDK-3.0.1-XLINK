@@ -151,27 +151,10 @@ LOCAL bool ESPFUNC user_device_update_gis(user_device_t *pdev) {
 }
 #endif
 
-void ESPFUNC user_device_default_config(user_device_t *pdev) {
-	if (pdev == NULL) {
-		return;
-	}
-	pdev->default_config();
-}
-
 void ESPFUNC user_device_save_config(user_device_t *pdev) {
 	if (pdev == NULL) {
 		return;
 	}
-	pdev->save_config();
-}
-
-void ESPFUNC user_device_restore(user_device_t *pdev) {
-	if (pdev == NULL) {
-		return;
-	}
-	pdev->default_config();
-	pdev->pconfig->daytime_start = 420;
-	pdev->pconfig->daytime_end = 1080;
 	pdev->save_config();
 }
 

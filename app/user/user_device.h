@@ -64,7 +64,6 @@ struct _user_device {
 	// key_list_t	key_list;
 
 	void (*const board_init)();
-	void (*const default_config)();
 	void (*const save_config)();
 	void (*const para_init)();
 	void (*const key_init)();
@@ -120,7 +119,6 @@ extern bool connected_local;
 extern bool user_device_psw_isvalid(user_device_t*);
 extern void user_device_init(user_device_t *);
 
-extern void user_device_restore(user_device_t *);
 extern bool user_device_poweron_check(user_device_t *);
 extern void user_device_set_cloud_zone(int16_t);
 

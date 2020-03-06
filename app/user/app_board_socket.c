@@ -4,7 +4,7 @@
 
 void ESPFUNC app_board_socket_init() {
 	gpio_init();
-	uart1_init(BAUDRATE_76800);
+	uart1_init(BAUDRATE_74880);
 	UART_SetPrintPort(UART1);
 	system_uart_swap();
 

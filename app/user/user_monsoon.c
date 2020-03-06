@@ -71,7 +71,6 @@ LOCAL void user_monsoon_open();
 LOCAL void user_monsoon_close();
 LOCAL uint16_t user_monsoon_get_poweron_period(uint8_t duration);
 
-LOCAL void user_monsoon_default_config();
 LOCAL void user_monsoon_save_config();
 LOCAL void user_monsoon_para_init();
 LOCAL void user_monsoon_key_init();
@@ -102,7 +101,6 @@ user_device_t user_dev_monsoon = {
 	.test_led2_num = LEDG_IO_NUM,
 
 	.board_init = app_board_monsoon_init,
-	.default_config = user_monsoon_default_config,
 	.save_config = user_monsoon_save_config,
 	.para_init = user_monsoon_para_init,
 	.key_init = user_monsoon_key_init,

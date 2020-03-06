@@ -31,6 +31,13 @@ LOCAL bool XLINK_FUNCTION xlink_read() {
 	return system_param_load(PRIV_PARAM_START_SECTOR, 0, &xlink_para, sizeof(xlink_para_t));
 }
 
+int32_t XLINK_FUNCTION xlink_reset_config() {
+	spi_flash_erase_sector(PRIV_PARAM_START_SECTOR);
+	spi_flash_erase_sector(PRIV_PARAM_START_SECTOR+1);
+	spi_flash_erase_sector(PRIV_PARAM_START_SECTOR+2);
+	return 0;
+}
+
 int32_t XLINK_FUNCTION xlink_write_config(uint8_t *data, uint32_t len) {
 	if(len > XLINK_CONFIG_BUFFER_SIZE) {
 		return -2;

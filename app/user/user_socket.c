@@ -80,7 +80,6 @@ LOCAL void user_socket_decode_sensor(uint8_t *pbuf, uint8_t len);
 LOCAL bool user_socket_linkage_process();
 LOCAL void reptile_temperature_linkage_process();
 
-LOCAL void user_socket_default_config();
 LOCAL void user_socket_save_config();
 LOCAL void user_socket_para_init();
 LOCAL void user_socket_key_init();
@@ -114,7 +113,6 @@ user_device_t user_dev_socket = {
 	.test_led2_num = LEDG_IO_NUM,
 
 	.board_init = app_board_socket_init,
-	.default_config = user_socket_default_config,
 	.save_config = user_socket_save_config,
 	.para_init = user_socket_para_init,
 	.key_init = user_socket_key_init,

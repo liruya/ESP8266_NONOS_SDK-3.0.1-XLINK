@@ -4,6 +4,7 @@
 #include "xlink_sdk.h"
 #include "app_common.h"
 
+extern int32_t 	xlink_reset_config();
 extern int32_t	xlink_write_config(uint8_t *data, uint32_t len);
 extern int32_t	xlink_read_config(uint8_t *data, uint32_t len);
 extern bool 	xlink_write_version(uint16_t version);

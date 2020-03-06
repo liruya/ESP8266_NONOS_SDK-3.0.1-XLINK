@@ -18,8 +18,11 @@
 
 #define	LED_PROPERTY			"Marine 500mm"
 
-#define PWM_PERIOD			4500			//us duty max 100000
-#define DUTY_GAIN			100
+#define PWM_PERIOD			450					//PWM_PERIOD/DUTY_GAIN=45 450us
+#define DUTY_GAIN			10
+
+// #define PWM_PERIOD			4500			//us duty max 100000
+// #define DUTY_GAIN			100
 #define BRIGHT_MIN			0
 #define BRIGHT_MAX			1000
 #define BRIGHT_DELT			200
@@ -125,7 +128,6 @@ LOCAL void user_led_indicate_day();
 LOCAL void user_led_indicate_night();
 LOCAL void user_led_indicate_wifi();
 
-LOCAL void user_led_default_config();
 LOCAL void user_led_save_config();
 LOCAL void user_led_para_init();
 LOCAL void user_led_key_init();
@@ -174,7 +176,6 @@ user_device_t user_dev_led = {
 	.test_led2_num = LEDG_IO_NUM,
 
 	.board_init = app_board_led_init,
-	.default_config = user_led_default_config,
 	.save_config = user_led_save_config,
 	.para_init = user_led_para_init,
 	.key_init = user_led_key_init,

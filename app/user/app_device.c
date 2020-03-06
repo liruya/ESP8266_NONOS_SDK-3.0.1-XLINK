@@ -58,8 +58,7 @@ LOCAL user_device_t * const pdev = &user_dev_monsoon;
 void ESPFUNC app_device_init() {
 	pdev->board_init();
 	if (user_device_poweron_check(pdev)) {
-		user_device_restore(pdev);
-		xlink_reset();
+		xlink_reset_config();
 		system_restore();
 
 		app_test_init(pdev);

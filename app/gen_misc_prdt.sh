@@ -4,8 +4,8 @@ echo "gen_misc.sh version 20150511"
 echo ""
 
 led_fw_version=1
-socket_fw_version=8
-monsoon_fw_version=8
+socket_fw_version=1
+monsoon_fw_version=1
 
 echo "choose product type(1=EXOTerraStrip, 2=EXOTerraSocket, 3=EXOTerraMonsoon)"
 echo "enter(1/2/3, default 1):"

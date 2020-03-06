@@ -1,6 +1,7 @@
 {
 	"files.associations": {
 		"xlink.h": "c",
-		"xlink_datapoint.h": "c"
+		"xlink_datapoint.h": "c",
+		"sntp.h": "c"
 	}
 }
